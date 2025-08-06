@@ -50,13 +50,24 @@ function AdminBoard() {
 
   useEffect(() => {
     const fetchUserExpenses = async () => {
-      if (!selectedUser) return;
+      if (!selectedUser) {
+        setUserExpenses({ office: 0, personal: 0 });
+        return;
+      }
 
       try {
         const snapshot = await getDocs(collection(db, "expenses"));
         const data = snapshot.docs.map((doc) => doc.data());
 
-        const userData = data.filter((item) => item.name === selectedUser);
+        // Make sure to match both user and admin correctly
+        const userData = data.filter((item) => {
+          // For Admin, match name === "Admin" and role === "admin"
+          if (selectedUser === "Admin") {
+            return item.name?.trim().toLowerCase() === "admin" && item.role === "admin";
+          }
+          // For other users, match name case-insensitively and trim spaces
+          return item.name?.trim().toLowerCase() === selectedUser.trim().toLowerCase();
+        });
 
         let office = 0;
         let personal = 0;
@@ -73,6 +84,7 @@ function AdminBoard() {
         setUserExpenses({ office, personal });
       } catch (err) {
         console.error("Failed to fetch expenses:", err);
+        setUserExpenses({ office: 0, personal: 0 });
       }
     };
 
@@ -123,6 +135,8 @@ function AdminBoard() {
 
   const handleAdminExpenseSubmit = async (e) => {
     e.preventDefault();
+
+    const title = e.target.title.value;
     const type = e.target.type.value;
     const amount = e.target.amount.value;
     const remarks = e.target.remarks.value;
@@ -130,19 +144,21 @@ function AdminBoard() {
     try {
       await addDoc(collection(db, "expenses"), {
         name: "Admin",
+        title,
         type,
-        amount: parseFloat(amount),
         remarks,
-        date: Timestamp.now(),
+        amount: parseFloat(amount),
+        date: new Date().toISOString().split("T")[0],
+        createdAt: Timestamp.now(),
+        role: "admin", // Mark as admin expense
       });
 
       toast.success("Expense added!");
-
-      setShowExpensePopup(false);
       e.target.reset();
+      setShowExpensePopup(false);
     } catch (err) {
-      console.error("Failed to save admin expense:", err);
-      toast.error("Failed to save.");
+      console.error("Error saving admin expense:", err);
+      toast.error("Failed to save expense.");
     }
   };
 
@@ -181,12 +197,15 @@ function AdminBoard() {
                 <select
                   className="w-full p-2 border rounded-md text-gray-700"
                   value={selectedUser || ""}
-                  onChange={(e) => setSelectedUser(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedUser(e.target.value);
+                  }}
                 >
                   <option value="">Select a User</option>
                   <option value="Ibrar">Ibrar</option>
                   <option value="Ahmad">Ahmad</option>
                   <option value="Ali">Ali</option>
+                  <option value="Admin">Admin</option>
                 </select>
               </div>
 
@@ -229,7 +248,12 @@ function AdminBoard() {
           <button
             onClick={() => {
               if (selectedUser) {
-                navigate(`/expense-history/${selectedUser}`);
+                // If Admin is selected, show admin expense history
+                if (selectedUser === "Admin") {
+                  navigate(`/expense-history/Admin`);
+                } else {
+                  navigate(`/expense-history/${selectedUser}`);
+                }
               } else {
                 toast.error("Please select a user first");
               }
@@ -238,22 +262,6 @@ function AdminBoard() {
           >
             E.History
           </button>
-        </div>
-
-        <div className="flex gap-4 justify-center mb-6">
-          {["Ibrar", "Ahmad", "Ali"].map((user) => (
-            <button
-              key={user}
-              onClick={() => setSelectedUser(user)}
-              className={`px-4 py-2 border rounded-md text-sm ${
-                selectedUser === user
-                  ? "bg-black text-white"
-                  : "bg-gray-200 hover:bg-gray-300"
-              }`}
-            >
-              {user}
-            </button>
-          ))}
         </div>
 
         <div className="mt-6 text-center">
