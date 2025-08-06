@@ -1,14 +1,29 @@
 // src/components/expenceform.jsx
+import { signOut } from "firebase/auth";
+import auth from "../firebase/auth";
+import { useNavigate } from "react-router-dom";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import db from "../firebase/firestore"; // make sure this path is correct
 
 function ExpenseEntryPage() {
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/");
+    } catch (err) {
+      console.error("Logout failed", err);
+    }
+  };
   const handleSubmit = async (e) => {
     e.preventDefault();
     const name = e.target.name.value;
     const date = e.target.date.value;
     const title = e.target.title.value;
     const amount = e.target.amount.value;
+    const type = e.target.type.value;
+    const remarks = e.target.remarks.value;
     const image = e.target.image.files[0]; // not uploading image for now
 
     try {
@@ -17,14 +32,16 @@ function ExpenseEntryPage() {
         title,
         amount: parseFloat(amount),
         name,
+        remarks,
+        type,
         createdAt: Timestamp.now(),
       });
 
-      alert("Expense saved successfully!");
+      toast.success("Expense saved successfully!");
       e.target.reset();
     } catch (error) {
       console.error("Error adding expense: ", error);
-      alert("Failed to save expense.");
+      toast.error("Failed to save expense.");
     }
   };
 
@@ -72,7 +89,23 @@ function ExpenseEntryPage() {
           required
           className="w-full mb-4 px-4 py-2 border rounded-lg"
         />
-
+        <label className="block mb-1 text-gray-600">Expense Type</label>
+        <select
+          name="type"
+          required
+          className="w-full mb-4 px-4 py-2 border rounded-lg"
+        >
+          <option value="">Select Type</option>
+          <option value="Office">Office</option>
+          <option value="Personal">Personal</option>
+        </select>
+        <label className="block mb-1 text-gray-600">Remarks (optional)</label>
+        <textarea
+          name="remarks"
+          placeholder="Enter any comments about this expense..."
+          rows="3"
+          className="w-full mb-4 px-4 py-2 border rounded-lg resize-none"
+        />
         <label className="block mb-1 text-gray-600">
           Upload Image (optional)
         </label>
@@ -89,6 +122,14 @@ function ExpenseEntryPage() {
         >
           Add
         </button>
+        <div className="flex justify-center mb-4">
+          <button
+            onClick={handleLogout}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-red-600 transition mt-4"
+          >
+            Logout
+          </button>
+        </div>
       </form>
     </div>
   );

@@ -21,7 +21,7 @@ function LoginForm() {
       }
     } catch (error) {
       console.error("Login failed:", error.message);
-      alert("Invalid credentials");
+      toast.error("Invalid credentials");
     }
   };
 
@@ -30,6 +30,7 @@ function LoginForm() {
       onSubmit={handleLogin}
       className="max-w-sm mx-auto mt-20 p-6 bg-white shadow-md rounded-md"
     >
+      <h2 className="text-2xl font-bold mb-4 text-center">Subtle Marketing</h2>
       <h2 className="text-2xl font-bold mb-4 text-center">Login</h2>
       <input
         name="email"

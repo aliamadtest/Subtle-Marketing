@@ -1,3 +1,4 @@
+import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
@@ -5,7 +6,7 @@ import db from "../firebase/firestore";
 function ExpenseHistory() {
   const [expenses, setExpenses] = useState([]);
   const navigate = useNavigate();
-
+  const { user } = useParams();
   useEffect(() => {
     const fetchExpenses = async () => {
       try {
@@ -14,7 +15,10 @@ function ExpenseHistory() {
           id: doc.id,
           ...doc.data(),
         }));
-        setExpenses(data);
+        const filtered = user
+          ? data.filter((item) => item.name === user)
+          : data;
+        setExpenses(filtered);
       } catch (err) {
         console.error("Failed to fetch expenses:", err);
       }
