@@ -63,10 +63,16 @@ function AdminBoard() {
         const userData = data.filter((item) => {
           // For Admin, match name === "Admin" and role === "admin"
           if (selectedUser === "Admin") {
-            return item.name?.trim().toLowerCase() === "admin" && item.role === "admin";
+            return (
+              item.name?.trim().toLowerCase() === "admin" &&
+              item.role === "admin"
+            );
           }
           // For other users, match name case-insensitively and trim spaces
-          return item.name?.trim().toLowerCase() === selectedUser.trim().toLowerCase();
+          return (
+            item.name?.trim().toLowerCase() ===
+            selectedUser.trim().toLowerCase()
+          );
         });
 
         let office = 0;
@@ -163,23 +169,23 @@ function AdminBoard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 relative">
-      <div className="bg-white p-6 rounded-xl shadow-lg max-w-2xl mx-auto">
-        <h2 className="bg-gray-300 text-gray-800 px-3 py-2 rounded shadow-lg text-center font-bold">
+    <div className="min-h-screen bg-gray-100 p-2 sm:p-4 md:p-6 lg:p-8 relative">
+      <div className="bg-white p-2 sm:p-4 md:p-6 rounded-xl shadow-lg max-w-full sm:max-w-2xl mx-auto">
+        <h2 className="bg-gray-300 text-gray-800 px-2 sm:px-3 py-2 rounded shadow-lg text-center font-bold text-lg sm:text-xl">
           Admin Dashboard
         </h2>
 
-        <div className="bg-white p-6 rounded-xl shadow-lg mt-5 mb-5">
-          <h2 className="bg-gray-300 text-gray-800 px-3 py-2 rounded shadow-md text-center mb-6 font-bold">
+        <div className="bg-white p-2 sm:p-4 md:p-6 rounded-xl shadow-lg mt-3 sm:mt-5 mb-3 sm:mb-5">
+          <h2 className="bg-gray-300 text-gray-800 px-2 sm:px-3 py-2 rounded shadow-md text-center mb-4 sm:mb-6 font-bold text-base sm:text-lg">
             Analytics
           </h2>
 
-          <div className="flex space-x-6 justify-center">
-            <div className="bg-[#F3F4F6] p-6 rounded-xl shadow-lg w-full max-w-xs">
-              <h2 className="text-1xl font-bold text-center mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 justify-center">
+            <div className="bg-[#F3F4F6] p-3 sm:p-6 rounded-xl shadow-lg w-full">
+              <h2 className="text-base sm:text-1xl font-bold text-center mb-2 sm:mb-4">
                 Total Cash
               </h2>
-              <div className="text-1xl mt-8">
+              <div className="text-base sm:text-1xl mt-4 sm:mt-8">
                 <p>Total: ₨ {totals.total}</p>
                 <p>Ibrar: ₨ {totals.Ibrar}</p>
                 <p>Ahmad: ₨ {totals.Ahmad}</p>
@@ -187,13 +193,15 @@ function AdminBoard() {
               </div>
             </div>
 
-            <div className="bg-[#F3F4F6] p-6 rounded-xl shadow-lg w-full max-w-xs">
-              <h2 className="text-1xl font-bold text-center mb-4">
+            <div className="bg-[#F3F4F6] p-3 sm:p-6 rounded-xl shadow-lg w-full">
+              <h2 className="text-base sm:text-1xl font-bold text-center mb-2 sm:mb-4">
                 User Record
               </h2>
 
-              <div className="mb-4">
-                <label className="block text-1xl mb-2">Select User</label>
+              <div className="mb-2 sm:mb-4">
+                <label className="block text-base sm:text-1xl mb-1 sm:mb-2">
+                  Select User
+                </label>
                 <select
                   className="w-full p-2 border rounded-md text-gray-700"
                   value={selectedUser || ""}
@@ -209,7 +217,7 @@ function AdminBoard() {
                 </select>
               </div>
 
-              <div className="text-left text-1xl">
+              <div className="text-left text-base sm:text-1xl">
                 <p>Office: ₨ {userExpenses.office}</p>
                 <p>Personal: ₨ {userExpenses.personal}</p>
               </div>
@@ -217,13 +225,13 @@ function AdminBoard() {
           </div>
         </div>
 
-        <div className="flex gap-6 justify-center mb-6">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 justify-center mb-4 sm:mb-6">
           <button
             onClick={() => {
               setShowPopup(true);
               setShowExpensePopup(false); // 👈 Close expense popup
             }}
-            className="bg-[#95979b] text-white px-6 py-2 rounded-lg hover:bg-[#4e4f53]"
+            className="bg-[#95979b] text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-[#4e4f53] w-full sm:w-auto"
           >
             Transfer
           </button>
@@ -233,14 +241,14 @@ function AdminBoard() {
               setShowExpensePopup(true);
               setShowPopup(false); // 👈 Close transfer popup
             }}
-            className="bg-[#95979b] text-white px-6 py-2 rounded-lg hover:bg-[#4e4f53]"
+            className="bg-[#95979b] text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-[#4e4f53] w-full sm:w-auto"
           >
             Admin Expense
           </button>
 
           <button
             onClick={handleViewHistory}
-            className="bg-[#95979b] text-white px-6 py-2 rounded-lg hover:bg-[#4e4f53]"
+            className="bg-[#95979b] text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-[#4e4f53] w-full sm:w-auto"
           >
             T.History
           </button>
@@ -258,16 +266,16 @@ function AdminBoard() {
                 toast.error("Please select a user first");
               }
             }}
-            className="bg-[#95979b] text-white px-6 py-2 rounded-lg hover:bg-[#4e4f53]"
+            className="bg-[#95979b] text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-[#4e4f53] w-full sm:w-auto"
           >
             E.History
           </button>
         </div>
 
-        <div className="mt-6 text-center">
+        <div className="mt-4 sm:mt-6 text-center">
           <button
             onClick={handleLogout}
-            className="bg-[#4e4f53] text-white px-6 py-2 rounded-lg hover:bg-red-600"
+            className="bg-[#4e4f53] text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-red-600 w-full sm:w-auto"
           >
             Logout
           </button>
