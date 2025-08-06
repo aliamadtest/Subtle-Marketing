@@ -34,28 +34,34 @@ function TransferHistory() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-6 rounded shadow-md w-full max-w-2xl">
+      <div className="bg-white p-6 rounded shadow-md w-full max-w-4xl">
         <h2 className="text-2xl font-bold mb-4 text-center">
           {user ? `${user}'s Transfer History` : "All Transfer History"}
         </h2>
 
         {transfers.length > 0 ? (
-          <table className="w-full table-auto border-collapse">
+          <table className="w-full table-auto border-collapse text-sm">
             <thead>
               <tr className="bg-gray-200">
                 <th className="border px-4 py-2">Date</th>
                 <th className="border px-4 py-2">Amount</th>
                 <th className="border px-4 py-2">User</th>
+                <th className="border px-4 py-2">Payment Method</th>
+                <th className="border px-4 py-2">Reason</th>
               </tr>
             </thead>
             <tbody>
               {transfers.map((item) => (
                 <tr key={item.id}>
                   <td className="border px-4 py-2">
-                    {item.date?.toDate().toISOString().split("T")[0]}
+                    {item.date?.toDate().toISOString().split("T")[0] || "N/A"}
                   </td>
-                  <td className="border px-4 py-2">₹{item.amount}</td>
+                  <td className="border px-4 py-2">₨ {item.amount}</td>
                   <td className="border px-4 py-2">{item.receiver}</td>
+                  <td className="border px-4 py-2">
+                    {item.paymentMethod || "N/A"}
+                  </td>
+                  <td className="border px-4 py-2">{item.remarks || "N/A"}</td>
                 </tr>
               ))}
             </tbody>
