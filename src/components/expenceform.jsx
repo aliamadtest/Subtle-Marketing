@@ -4,6 +4,7 @@ import auth from "../firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import db from "../firebase/firestore"; // make sure this path is correct
+import { toast } from "react-toastify";
 
 function ExpenseEntryPage() {
   const navigate = useNavigate();
@@ -34,11 +35,12 @@ function ExpenseEntryPage() {
         name,
         remarks,
         type,
+        role: name.trim().toLowerCase() === "admin" ? "admin" : "user", // Mark as admin if name is Admin
         createdAt: Timestamp.now(),
       });
 
-      toast.success("Expense saved successfully!");
       e.target.reset();
+      toast.success("Expense saved successfully!");
     } catch (error) {
       console.error("Error adding expense: ", error);
       toast.error("Failed to save expense.");
@@ -124,6 +126,7 @@ function ExpenseEntryPage() {
         </button>
         <div className="flex justify-center mb-4">
           <button
+            type="button"
             onClick={handleLogout}
             className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-red-600 transition mt-4"
           >
