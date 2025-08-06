@@ -92,7 +92,7 @@ function AdminBoard() {
     if (selectedUser) {
       navigate(`/transfer-history/${selectedUser}`);
     } else {
-      alert("Please select a user first");
+      toast.error("Please select a user first");
     }
   };
 
@@ -231,7 +231,7 @@ function AdminBoard() {
               if (selectedUser) {
                 navigate(`/expense-history/${selectedUser}`);
               } else {
-                alert("Please select a user first");
+                toast.error("Please select a user first");
               }
             }}
             className="bg-[#95979b] text-white px-6 py-2 rounded-lg hover:bg-[#4e4f53]"
