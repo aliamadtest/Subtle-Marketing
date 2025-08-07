@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import auth from "../firebase/auth";
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import db from "../firebase/firestore";
@@ -19,21 +20,20 @@ function ExpenseHistory() {
           ...doc.data(),
         }));
 
-        // Show only admin expenses if user is 'Admin', else show only user expenses
+        // If user param is 'admin', show only admin expenses
+        // If user param is 'all' or undefined, show all expenses (admin + user)
+        // If user param is a username, show only that user's expenses
         let filtered;
         if (user && user.toLowerCase() === "admin") {
-          filtered = data.filter(
-            (item) =>
-              item.role === "admin" && item.name?.toLowerCase() === "admin"
-          );
-        } else if (user && user !== "all") {
+          filtered = data.filter((item) => item.role === "admin");
+        } else if (user && user && user !== "all") {
           filtered = data.filter(
             (item) =>
               item.role === "user" &&
               item.name?.toLowerCase() === user.toLowerCase()
           );
         } else {
-          filtered = data.filter((item) => item.role === "user");
+          filtered = data; // Show all expenses (admin + user)
         }
 
         setExpenses(filtered);
@@ -153,13 +153,19 @@ function ExpenseHistory() {
             style={{ lineHeight: 0 }}
           >
             {/* Red printer icon SVG */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 48 48" fill="red">
-              <rect x="10" y="4" width="28" height="10" rx="2"/>
-              <rect x="8" y="14" width="32" height="18" rx="3"/>
-              <rect x="14" y="34" width="20" height="8" rx="1.5"/>
-              <rect x="18" y="20" width="12" height="2.5" rx="1" fill="#fff"/>
-              <rect x="18" y="25" width="12" height="2.5" rx="1" fill="#fff"/>
-              <circle cx="38" cy="23" r="2.2" fill="#fff"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="28"
+              height="28"
+              viewBox="0 0 48 48"
+              fill="red"
+            >
+              <rect x="10" y="4" width="28" height="10" rx="2" />
+              <rect x="8" y="14" width="32" height="18" rx="3" />
+              <rect x="14" y="34" width="20" height="8" rx="1.5" />
+              <rect x="18" y="20" width="12" height="2.5" rx="1" fill="#fff" />
+              <rect x="18" y="25" width="12" height="2.5" rx="1" fill="#fff" />
+              <circle cx="38" cy="23" r="2.2" fill="#fff" />
             </svg>
           </button>
         </div>
@@ -270,14 +276,17 @@ function ExpenseHistory() {
           <p className="text-center text-gray-600">No expenses found.</p>
         )}
 
-        <div className="text-center mt-2 sm:mt-4">
-          <button
-            onClick={() => navigate("/admin-dashboard")}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition"
-          >
-            ← Admin Panel
-          </button>
-        </div>
+        {/* Show Back to Admin Panel button only for admin */}
+        {auth.currentUser?.email === "admin@admin.com" && (
+          <div className="text-center mt-2 sm:mt-4">
+            <button
+              onClick={() => navigate("/admin-dashboard")}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition print:hidden"
+            >
+              ← Admin Panel
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

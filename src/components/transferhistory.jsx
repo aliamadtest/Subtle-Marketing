@@ -20,13 +20,21 @@ function TransferHistory() {
           ...doc.data(),
         }));
 
-        // If user param is 'Admin', show transfers where sender is 'Admin'
+        // If admin is selected, show no transfer history
+        // If a user is selected, show all their transfers (sender or receiver, even if admin is involved)
+        // If viewing all, show only transfers where sender is admin and receiver is a user
         if (user && user.toLowerCase() === "admin") {
-          data = data.filter(
-            (item) => item.sender && item.sender.toLowerCase() === "admin"
-          );
+          data = [];
         } else if (user && user !== "all") {
-          data = data.filter((item) => item.receiver === user);
+          data = data.filter(
+            (item) => item.receiver === user || item.sender === user
+          );
+        } else {
+          data = data.filter(
+            (item) =>
+              item.sender?.toLowerCase() === "admin" &&
+              item.receiver?.toLowerCase() !== "admin"
+          );
         }
 
         setTransfers(data);
