@@ -27,6 +27,10 @@ function AdminBoard() {
   // Get current user email from Firebase Auth
   const currentUserEmail = auth.currentUser?.email || "";
 
+  // State to disable transfer button after add
+  const [transferDisabled, setTransferDisabled] = useState(false);
+  const [transferToastShown, setTransferToastShown] = useState(false);
+
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
@@ -114,6 +118,9 @@ function AdminBoard() {
 
   const handleTransferSubmit = async (e) => {
     e.preventDefault();
+    if (transferDisabled) return; // Prevent double submit and double toast
+    setTransferDisabled(true); // Disable immediately to prevent double
+
     const receiver = e.target.receiver.value;
     const amount = e.target.amount.value;
     const paymentMethod = e.target.paymentMethod.value;
@@ -139,10 +146,14 @@ function AdminBoard() {
         return newTotals;
       });
 
-      toast.success("Transfer successful!");
-      setShowPopup(false);
+      if (!transferToastShown) {
+        toast.success("Transfer successful!");
+        setTransferToastShown(true);
+      }
       e.target.reset();
+      setShowPopup(false); // Close the popup after success
     } catch (error) {
+      setTransferDisabled(false); // Re-enable if error
       console.error("Error:", error);
       toast.error("Transfer failed!");
     }
@@ -381,8 +392,11 @@ function AdminBoard() {
               onClick={() => {
                 setShowPopup(true);
                 setShowExpensePopup(false);
+                setTransferDisabled(false);
+                setTransferToastShown(false);
               }}
               className="bg-blue-600 text-white font-semibold px-4 sm:px-6 py-2 rounded-lg hover:bg-blue-700 w-full sm:w-auto transition-all duration-150"
+              type="button"
             >
               Transfer
             </button>
@@ -443,7 +457,11 @@ function AdminBoard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent">
           <div className="bg-white border shadow-xl rounded-xl w-full max-w-xs p-4 sm:p-5 relative mx-2">
             <button
-              onClick={() => setShowPopup(false)}
+              onClick={() => {
+                setShowPopup(false);
+                setTransferDisabled(false);
+                setTransferToastShown(false);
+              }}
               className="absolute top-2 right-3 text-xl text-gray-400 hover:text-red-500 font-bold"
             >
               ×
@@ -459,7 +477,13 @@ function AdminBoard() {
               })()}
             </h2>
 
-            <form onSubmit={handleTransferSubmit}>
+            <form
+              onSubmit={handleTransferSubmit}
+              onChange={() => {
+                setTransferDisabled(false);
+                setTransferToastShown(false);
+              }}
+            >
               {/* Name field removed for user expense form */}
               <select
                 name="receiver"
@@ -507,9 +531,10 @@ function AdminBoard() {
 
               <button
                 type="submit"
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={transferDisabled}
               >
-                Add
+                {transferDisabled ? "Saved" : "Add"}
               </button>
             </form>
           </div>
