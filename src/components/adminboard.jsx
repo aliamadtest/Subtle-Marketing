@@ -148,13 +148,20 @@ function AdminBoard() {
     }
   };
 
+  // State to disable admin expense button after add
+  const [adminExpenseDisabled, setAdminExpenseDisabled] = useState(false);
+  const [adminExpenseToastShown, setAdminExpenseToastShown] = useState(false);
   const handleAdminExpenseSubmit = async (e) => {
     e.preventDefault();
+    if (adminExpenseDisabled) return; // Prevent double submit and double toast
 
-    const title = e.target.title.value;
-    const type = e.target.type.value;
-    const amount = e.target.amount.value;
-    const remarks = e.target.remarks.value;
+    setAdminExpenseDisabled(true); // Disable immediately to prevent double
+
+    const form = e.target;
+    const title = form.title.value;
+    const type = form.type.value;
+    const amount = form.amount.value;
+    const remarks = form.remarks.value;
 
     // Determine who is submitting (admin, Ahmad, Ibrar)
     let name = "Admin";
@@ -181,10 +188,14 @@ function AdminBoard() {
         role, // Mark as admin or user expense
       });
 
-      toast.success("Expense added!");
-      e.target.reset();
-      setShowExpensePopup(false);
+      // Clear all fields after add
+      form.reset();
+      if (!adminExpenseToastShown) {
+        toast.success("Expense added!");
+        setAdminExpenseToastShown(true);
+      }
     } catch (err) {
+      setAdminExpenseDisabled(false); // Re-enable if error
       console.error("Error saving admin expense:", err);
       toast.error("Failed to save expense.");
     }
@@ -217,57 +228,68 @@ function AdminBoard() {
                 </svg>
               </button>
               {showMobileMenu && (
-                <div
-                  className="absolute right-0 top-12 bg-white rounded-xl shadow-2xl border flex flex-col gap-2 py-2 px-3 z-50 min-w-[180px] w-max animate-fade-in"
-                  style={{ minWidth: "180px", maxWidth: "90vw" }}
-                >
-                  <button
-                    onClick={() => {
-                      setShowPopup(true);
-                      setShowExpensePopup(false);
-                      setShowMobileMenu(false);
+                <>
+                  {/* Overlay to close menu on outside click */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    style={{
+                      background: "rgba(0,0,0,0)",
+                      touchAction: "manipulation",
                     }}
-                    className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
+                    onClick={() => setShowMobileMenu(false)}
+                  />
+                  <div
+                    className="absolute right-0 top-12 bg-white rounded-xl shadow-2xl border flex flex-col gap-2 py-2 px-3 z-50 min-w-[180px] w-max animate-fade-in"
+                    style={{ minWidth: "180px", maxWidth: "90vw" }}
                   >
-                    Transfer
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowExpensePopup(true);
-                      setShowPopup(false);
-                      setShowMobileMenu(false);
-                    }}
-                    className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
-                  >
-                    Admin Expense
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleViewHistory();
-                      setShowMobileMenu(false);
-                    }}
-                    className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
-                  >
-                    T.History
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (selectedUser) {
-                        if (selectedUser === "Admin") {
-                          navigate(`/expense-history/Admin`);
+                    <button
+                      onClick={() => {
+                        setShowPopup(true);
+                        setShowExpensePopup(false);
+                        setShowMobileMenu(false);
+                      }}
+                      className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
+                    >
+                      Transfer
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowExpensePopup(true);
+                        setShowPopup(false);
+                        setShowMobileMenu(false);
+                      }}
+                      className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
+                    >
+                      Admin Expense
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleViewHistory();
+                        setShowMobileMenu(false);
+                      }}
+                      className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
+                    >
+                      T.History
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (selectedUser) {
+                          if (selectedUser === "Admin") {
+                            navigate(`/expense-history/Admin`);
+                          } else {
+                            navigate(`/expense-history/${selectedUser}`);
+                          }
                         } else {
-                          navigate(`/expense-history/${selectedUser}`);
+                          navigate(`/expense-history/all`);
                         }
-                      } else {
-                        navigate(`/expense-history/all`);
-                      }
-                      setShowMobileMenu(false);
-                    }}
-                    className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
-                  >
-                    E.History
-                  </button>
-                </div>
+                        setShowMobileMenu(false);
+                      }}
+                      className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
+                    >
+                      E.History
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -509,7 +531,13 @@ function AdminBoard() {
               Admin Expense Entry
             </h2>
 
-            <form onSubmit={handleAdminExpenseSubmit}>
+            <form
+              onSubmit={handleAdminExpenseSubmit}
+              onChange={() => {
+                setAdminExpenseDisabled(false);
+                setAdminExpenseToastShown(false);
+              }}
+            >
               <label className="block mb-1 text-gray-600">Date</label>
               <input
                 type="date"
@@ -560,9 +588,10 @@ function AdminBoard() {
 
               <button
                 type="submit"
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={adminExpenseDisabled}
               >
-                Save Expense
+                {adminExpenseDisabled ? "Saved" : "Save Expense"}
               </button>
             </form>
           </div>

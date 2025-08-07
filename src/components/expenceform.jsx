@@ -62,7 +62,9 @@ function ExpenseEntryPage() {
 
   const handleViewMyExpenses = () => {
     if (!userName) return;
-    navigate(`/expense-history/${userName}`);
+    navigate(`/expense-history/${userName}`, {
+      state: { fromExpenseEntry: true },
+    });
   };
 
   const handleLogout = async () => {

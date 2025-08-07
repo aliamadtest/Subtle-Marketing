@@ -287,6 +287,21 @@ function ExpenseHistory() {
             </button>
           </div>
         )}
+
+        {/* Show Back to Expense Entry button for users, only if navigated from expense form */}
+        {auth.currentUser?.email !== "admin@admin.com" &&
+          window.history.state &&
+          window.history.state.usr &&
+          window.history.state.usr.fromExpenseEntry && (
+            <div className="text-center mt-2 sm:mt-4">
+              <button
+                onClick={() => navigate("/expense-entry")}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition print:hidden"
+              >
+                ← Back to Expense Entry
+              </button>
+            </div>
+          )}
       </div>
     </div>
   );
