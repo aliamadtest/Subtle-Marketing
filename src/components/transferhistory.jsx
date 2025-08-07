@@ -1,5 +1,6 @@
 // src/components/transferhistory.jsx
 import { useEffect, useState } from "react";
+import "./print-fallback.css";
 import { collection, getDocs } from "firebase/firestore";
 import db from "../firebase/firestore";
 import { useNavigate, useParams } from "react-router-dom";
@@ -37,6 +38,18 @@ function TransferHistory() {
           );
         }
 
+        // Sort by date/createdAt descending (newest first)
+        data.sort((a, b) => {
+          // Prefer Firestore Timestamp 'date', fallback to 'createdAt', fallback to 0
+          const getTime = (item) => {
+            if (item.date && typeof item.date.toDate === "function")
+              return item.date.toDate().getTime();
+            if (item.createdAt && typeof item.createdAt.toDate === "function")
+              return item.createdAt.toDate().getTime();
+            return 0;
+          };
+          return getTime(b) - getTime(a);
+        });
         setTransfers(data);
         setCurrentPage(1); // Reset to first page on data change
       } catch (error) {
@@ -73,7 +86,7 @@ function TransferHistory() {
     }
     let last;
     return (
-      <div className="flex items-center justify-center gap-1 mt-4">
+      <div className="flex items-center justify-center gap-1 mt-4 pagination">
         <button
           className="px-2 py-1 border rounded disabled:opacity-50"
           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}

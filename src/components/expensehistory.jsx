@@ -3,6 +3,7 @@ import auth from "../firebase/auth";
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import db from "../firebase/firestore";
+import "./print-fallback.css";
 
 function ExpenseHistory() {
   const [expenses, setExpenses] = useState([]);
@@ -36,6 +37,18 @@ function ExpenseHistory() {
           filtered = data; // Show all expenses (admin + user)
         }
 
+        // Sort by createdAt descending (newest first)
+        filtered.sort((a, b) => {
+          const aTime =
+            a.createdAt && a.createdAt.toDate
+              ? a.createdAt.toDate().getTime()
+              : new Date(a.createdAt || a.date || 0).getTime();
+          const bTime =
+            b.createdAt && b.createdAt.toDate
+              ? b.createdAt.toDate().getTime()
+              : new Date(b.createdAt || b.date || 0).getTime();
+          return bTime - aTime;
+        });
         setExpenses(filtered);
         setCurrentPage(1); // Reset to first page on data change
       } catch (err) {
@@ -91,7 +104,7 @@ function ExpenseHistory() {
     }
     let last;
     return (
-      <div className="flex items-center justify-center gap-1 mt-4">
+      <div className="flex items-center justify-center gap-1 mt-4 pagination">
         <button
           className="px-2 py-1 border rounded disabled:opacity-50"
           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}

@@ -1,0 +1,13 @@
+/* Fallback print CSS to hide elements with print:hidden if Tailwind print plugin is not active */
+@media print {
+  .print\\:hidden,
+  .print\:hidden,
+  .print-hidden {
+    display: none !important;
+  }
+  /* Also hide all pagination buttons by selector as a last resort */
+  .pagination,
+  .pagination * {
+    display: none !important;
+  }
+}
