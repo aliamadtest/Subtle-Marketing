@@ -19,7 +19,7 @@ function ExpenseEntryPage() {
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const name = e.target.name.value;
+    // Remove name field for user expense form
     const date = e.target.date.value;
     const title = e.target.title.value;
     const amount = e.target.amount.value;
@@ -28,15 +28,30 @@ function ExpenseEntryPage() {
     const image = e.target.image.files[0]; // not uploading image for now
 
     try {
+      // Get current user info
+      const currentUserEmail = auth.currentUser?.email || "";
+      let name = "";
+      let role = "user";
+      if (currentUserEmail === "ahmad@ahmad.com") {
+        name = "Ahmad";
+      } else if (currentUserEmail === "ibrar@ibrar.com") {
+        name = "Ibrar";
+      } else if (currentUserEmail === "admin@admin.com") {
+        name = "Admin";
+        role = "admin";
+      } else if (currentUserEmail) {
+        name = currentUserEmail.split("@")[0];
+      }
       await addDoc(collection(db, "expenses"), {
         date,
         title,
         amount: parseFloat(amount),
-        name,
         remarks,
         type,
-        role: name.trim().toLowerCase() === "admin" ? "admin" : "user", // Mark as admin if name is Admin
+        role,
         createdAt: Timestamp.now(),
+        name,
+        email: currentUserEmail,
       });
 
       e.target.reset();
@@ -54,23 +69,21 @@ function ExpenseEntryPage() {
         className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md"
       >
         <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
-          Expense Entry
+          {(() => {
+            const email = auth.currentUser?.email || "";
+            if (email === "ahmad@ahmad.com") return "Welcome Ahmad";
+            if (email === "ibrar@ibrar.com") return "Welcome Ibrar";
+            return "Expense Entry";
+          })()}
         </h2>
-        {/* Name Field */}
-        <label className="block mb-1 text-gray-600">Name</label>
-        <input
-          type="text"
-          name="name"
-          placeholder="Enter Your Name"
-          required
-          className="w-full mb-4 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
+        {/* Name field removed for user expense form */}
 
         <label className="block mb-1 text-gray-600">Date</label>
         <input
           type="date"
           name="date"
           required
+          defaultValue={new Date().toISOString().split("T")[0]}
           className="w-full mb-4 px-4 py-2 border rounded-lg"
         />
 
@@ -108,31 +121,21 @@ function ExpenseEntryPage() {
           rows="3"
           className="w-full mb-4 px-4 py-2 border rounded-lg resize-none"
         />
-        <label className="block mb-1 text-gray-600">
-          Upload Image (optional)
-        </label>
-        <input
-          type="file"
-          name="image"
-          accept="image/*"
-          className="w-full mb-6"
-        />
+        {/* Image upload field hidden */}
 
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 mb-4 transition"
         >
           Add
         </button>
-        <div className="flex justify-center mb-4">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-red-600 transition mt-4"
-          >
-            Logout
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+        >
+          Logout
+        </button>
       </form>
     </div>
   );
