@@ -12,18 +12,13 @@ function TransferHistory() {
   const navigate = useNavigate();
   const { user } = useParams(); // e.g., /transfer-history/Ahmad
 
+  // ---- data load & filtering (unchanged logic) ----
   useEffect(() => {
     const fetchTransfers = async () => {
       try {
         const snapshot = await getDocs(collection(db, "transfer-history"));
-        let data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        let data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-        // If admin is selected, show no transfer history
-        // If a user is selected, show all their transfers (sender or receiver, even if admin is involved)
-        // If viewing all, show only transfers where sender is admin and receiver is a user
         if (user && user.toLowerCase() === "admin") {
           data = [];
         } else if (user && user !== "all") {
@@ -38,20 +33,18 @@ function TransferHistory() {
           );
         }
 
-        // Sort by date/createdAt descending (newest first)
-        data.sort((a, b) => {
-          // Prefer Firestore Timestamp 'date', fallback to 'createdAt', fallback to 0
-          const getTime = (item) => {
-            if (item.date && typeof item.date.toDate === "function")
-              return item.date.toDate().getTime();
-            if (item.createdAt && typeof item.createdAt.toDate === "function")
-              return item.createdAt.toDate().getTime();
-            return 0;
-          };
-          return getTime(b) - getTime(a);
-        });
+        // newest first
+        const getTime = (item) => {
+          if (item.date && typeof item.date.toDate === "function")
+            return item.date.toDate().getTime();
+          if (item.createdAt && typeof item.createdAt.toDate === "function")
+            return item.createdAt.toDate().getTime();
+          return 0;
+        };
+        data.sort((a, b) => getTime(b) - getTime(a));
+
         setTransfers(data);
-        setCurrentPage(1); // Reset to first page on data change
+        setCurrentPage(1);
       } catch (error) {
         console.error("Error fetching transfers:", error);
       }
@@ -60,7 +53,25 @@ function TransferHistory() {
     fetchTransfers();
   }, [user]);
 
-  // Pagination logic
+  // ---- date helpers ----
+  const bestDate = (item) => {
+    if (item?.date?.toDate) return item.date.toDate();
+    if (item?.createdAt?.toDate) return item.createdAt.toDate();
+    if (typeof item?.date === "string") {
+      const d = new Date(item.date);
+      return isNaN(d) ? null : d;
+    }
+    return null;
+  };
+  const formatShort = (d) => {
+    if (!d) return "N/A";
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    return `${day}-${month}`;
+    // (kept year hidden, as per earlier screens)
+  };
+
+  // ---- pagination ----
   const totalPages = Math.ceil(transfers.length / itemsPerPage);
   const paginatedTransfers = transfers.slice(
     (currentPage - 1) * itemsPerPage,
@@ -86,9 +97,9 @@ function TransferHistory() {
     }
     let last;
     return (
-      <div className="flex items-center justify-center gap-1 mt-4 pagination">
+      <div className="flex items-center justify-center gap-1 mt-5 print:hidden">
         <button
-          className="px-2 py-1 border rounded disabled:opacity-50"
+          className="px-3 py-1.5 rounded-lg border bg-white/70 hover:bg-white transition disabled:opacity-50"
           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
           disabled={currentPage === 1}
         >
@@ -99,27 +110,30 @@ function TransferHistory() {
             if (last === "...") return null;
             last = "...";
             return (
-              <span key={idx} className="px-2">
-                ...
+              <span key={`dots-${idx}`} className="px-2">
+                …
               </span>
             );
           }
           last = p;
+          const active = currentPage === p;
           return (
             <button
               key={p}
-              className={`px-3 py-1 border rounded ${
-                currentPage === p ? "bg-gray-100 font-bold" : ""
-              }`}
               onClick={() => setCurrentPage(p)}
-              disabled={currentPage === p}
+              disabled={active}
+              className={`px-3 py-1.5 rounded-lg border transition ${
+                active
+                  ? "text-white bg-[linear-gradient(298deg,#0BBFEF_0%,#D12CBF_100%)] cursor-default"
+                  : "bg-white/70 hover:bg-white"
+              }`}
             >
               {p}
             </button>
           );
         })}
         <button
-          className="px-2 py-1 border rounded disabled:opacity-50"
+          className="px-3 py-1.5 rounded-lg border bg-white/70 hover:bg-white transition disabled:opacity-50"
           onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
           disabled={currentPage === totalPages}
         >
@@ -129,155 +143,151 @@ function TransferHistory() {
     );
   };
 
+  // ---- heading ----
+  const headingText =
+    user && user !== "all"
+      ? `${user} Transfer History`
+      : "Total Transfer History";
+
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-1 sm:px-4">
-      <div className="bg-white p-1 sm:p-6 rounded shadow-md w-full max-w-full sm:max-w-4xl relative">
-        {/* Print Icon Button */}
-        <div className="flex items-center justify-center sm:justify-between mb-4 gap-2 relative">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-center text-blue-800 tracking-tight drop-shadow flex-1">
-            {user && user !== "all"
-              ? `${user} Transfer History`
-              : "Total Transfer History"}
-          </h2>
-          <button
-            onClick={() => window.print()}
-            title="Print"
-            className="ml-2 p-2 rounded-full hover:bg-gray-200 focus:outline-none bg-white shadow border border-gray-200 flex-shrink-0 print:hidden"
-            style={{ lineHeight: 0 }}
-          >
-            {/* Red printer icon SVG (same as ExpenseHistory) */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="28"
-              height="28"
-              viewBox="0 0 48 48"
-              fill="red"
-            >
-              <rect x="10" y="4" width="28" height="10" rx="2" />
-              <rect x="8" y="14" width="32" height="18" rx="3" />
-              <rect x="14" y="34" width="20" height="8" rx="1.5" />
-              <rect x="18" y="20" width="12" height="2.5" rx="1" fill="#fff" />
-              <rect x="18" y="25" width="12" height="2.5" rx="1" fill="#fff" />
-              <circle cx="38" cy="23" r="2.2" fill="#fff" />
-            </svg>
-          </button>
-        </div>
+    <div className="relative min-h-screen flex items-center justify-center bg-[#0d2b2c] px-3 sm:px-6">
+      {/* radial brand overlay */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          background:
+            "radial-gradient(at center center, #99C5F0 20%, #D08EDF 100%)",
+        }}
+      />
 
-        {transfers.length > 0 ? (
-          <>
-            {/* Mobile: show cards */}
-            <div className="block sm:hidden">
-              <div className="space-y-3">
-                {paginatedTransfers.map((item) => (
-                  <div
-                    key={item.id}
-                    className="border rounded-lg p-2 bg-gray-50 shadow-sm"
-                  >
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold">Date:</span>
-                      <span>
-                        {item.date
-                          ? (() => {
-                              const d = item.date.toDate();
-                              const day = String(d.getDate()).padStart(2, "0");
-                              const month = String(d.getMonth() + 1).padStart(
-                                2,
-                                "0"
-                              );
-                              return `${day}-${month}`;
-                            })()
-                          : "N/A"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold">Amount:</span>
-                      <span>{item.amount}</span>
-                    </div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold">User:</span>
-                      <span>{item.receiver}</span>
-                    </div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold">Payment Method:</span>
-                      <span>{item.paymentMethod || "N/A"}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="font-semibold">Reason:</span>
-                      <span>{item.remarks || "N/A"}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+      <div className="relative z-10 w-full max-w-6xl mx-auto">
+        {/* Glass card */}
+        <div className="rounded-2xl border border-white/20 bg-white/15 backdrop-blur-xl shadow-2xl overflow-hidden">
+          {/* Accent bar */}
+          <div className="h-1.5 w-full bg-[linear-gradient(298deg,#0BBFEF_0%,#D12CBF_100%)]" />
+
+          <div className="p-4 sm:p-6">
+            {/* Header row */}
+            <div className="flex items-center justify-center sm:justify-between gap-3 mb-4">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white/95 text-center tracking-tight drop-shadow">
+                {headingText}
+              </h2>
+
+              {/* Print */}
+              <button
+                onClick={() => window.print()}
+                title="Print"
+                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
+                           bg-white/20 text-white hover:bg-white/30 transition shadow print:hidden"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 48 48"
+                  fill="currentColor"
+                >
+                  <rect x="10" y="4" width="28" height="10" rx="2" />
+                  <rect x="8" y="14" width="32" height="18" rx="3" />
+                  <rect x="14" y="34" width="20" height="8" rx="1.5" />
+                </svg>
+                <span className="text-sm font-semibold">Print</span>
+              </button>
             </div>
-            {/* Desktop/tablet: show table */}
-            <div className="hidden sm:block w-full overflow-x-auto">
-              <table className="min-w-[500px] w-full table-auto border-collapse text-sm md:text-base">
-                <thead>
-                  <tr className="bg-gray-200">
-                    <th className="border px-2 py-2 whitespace-nowrap">Date</th>
-                    <th className="border px-2 py-2 whitespace-nowrap">
-                      Amount
-                    </th>
-                    <th className="border px-2 py-2 whitespace-nowrap">User</th>
-                    <th className="border px-2 py-2 whitespace-nowrap">
-                      Payment Method
-                    </th>
-                    <th className="border px-2 py-2 whitespace-nowrap">
-                      Reason
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+
+            {transfers.length > 0 ? (
+              <>
+                {/* Mobile cards */}
+                <div className="sm:hidden space-y-3">
                   {paginatedTransfers.map((item) => (
-                    <tr
+                    <div
                       key={item.id}
-                      className="text-center hover:bg-gray-100 transition"
+                      className="rounded-xl border border-white/30 bg-white/85 text-gray-800 shadow"
                     >
-                      <td className="border px-2 py-2 break-words max-w-[120px]">
-                        {item.date
-                          ? (() => {
-                              const d = item.date.toDate();
-                              const day = String(d.getDate()).padStart(2, "0");
-                              const month = String(d.getMonth() + 1).padStart(
-                                2,
-                                "0"
-                              );
-                              return `${day}-${month}`;
-                            })()
-                          : "N/A"}
-                      </td>
-                      <td className="border px-2 py-2 break-words max-w-[100px]">
-                        {item.amount}
-                      </td>
-                      <td className="border px-2 py-2 break-words max-w-[100px]">
-                        {item.receiver}
-                      </td>
-                      <td className="border px-2 py-2 break-words max-w-[100px]">
-                        {item.paymentMethod || "N/A"}
-                      </td>
-                      <td className="border px-2 py-2 break-words max-w-[140px]">
-                        {item.remarks || "N/A"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="print:hidden">{renderPagination()}</div>
-          </>
-        ) : (
-          <p className="text-center text-gray-600">
-            No transfer records found.
-          </p>
-        )}
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs p-3">
+                        <span className="font-semibold">Date</span>
+                        <span className="text-right">
+                          {formatShort(bestDate(item))}
+                        </span>
 
-        <div className="text-center mt-2 sm:mt-4">
-          <button
-            onClick={() => navigate("/admin-dashboard")}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition print:hidden"
-          >
-            ← Admin Panel
-          </button>
+                        <span className="font-semibold">Amount</span>
+                        <span className="text-right">
+                          PKR {item.amount || 0}
+                        </span>
+
+                        <span className="font-semibold">User</span>
+                        <span className="text-right">
+                          {item.receiver || "—"}
+                        </span>
+
+                        <span className="font-semibold">Payment Method</span>
+                        <span className="text-right">
+                          {item.paymentMethod || "N/A"}
+                        </span>
+
+                        <span className="font-semibold">Reason</span>
+                        <span className="text-right break-words">
+                          {item.remarks || "N/A"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop/Tablet table */}
+                <div className="hidden sm:block w-full overflow-x-auto rounded-xl border border-white/30 bg-white/85 text-gray-800 shadow">
+                  <table className="min-w-[680px] w-full table-fixed">
+                    <thead className="bg-gray-100 sticky top-0">
+                      <tr className="text-left text-sm">
+                        <th className="px-3 py-2 w-24">Date</th>
+                        <th className="px-3 py-2 w-32">Amount</th>
+                        <th className="px-3 py-2 w-32">User</th>
+                        <th className="px-3 py-2 w-44">Payment Method</th>
+                        <th className="px-3 py-2">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {paginatedTransfers.map((item) => (
+                        <tr
+                          key={item.id}
+                          className="hover:bg-gray-50 transition"
+                        >
+                          <td className="px-3 py-2">
+                            {formatShort(bestDate(item))}
+                          </td>
+                          <td className="px-3 py-2">PKR {item.amount || 0}</td>
+                          <td className="px-3 py-2">{item.receiver || "—"}</td>
+                          <td className="px-3 py-2">
+                            {item.paymentMethod || "N/A"}
+                          </td>
+                          <td className="px-3 py-2 break-words">
+                            {item.remarks || "N/A"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {renderPagination()}
+              </>
+            ) : (
+              <p className="text-center text-white/90 py-10">
+                No transfer records found.
+              </p>
+            )}
+
+            {/* Back button */}
+            <div className="text-center mt-4 print:hidden">
+              <button
+                onClick={() => navigate("/admin-dashboard")}
+                className="px-4 py-2 rounded-lg text-white shadow
+                           bg-[linear-gradient(298deg,#0BBFEF_0%,#D12CBF_100%)] hover:opacity-95 transition"
+              >
+                ← Admin Panel
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

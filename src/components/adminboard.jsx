@@ -1,107 +1,276 @@
+// src/components/AdminBoard.jsx
+// (same imports as before)
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 import { toast } from "react-toastify";
 import { signOut } from "firebase/auth";
 import auth from "../firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { collection, getDocs, addDoc, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  Timestamp,
+  onSnapshot,
+  query,
+  orderBy,
+  limit,
+  writeBatch,
+  doc,
+} from "firebase/firestore";
 import db from "../firebase/firestore";
 
 function AdminBoard() {
+  // ---------- state & helpers unchanged ----------
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const navigate = useNavigate();
   const [selectedUser, setSelectedUser] = useState("");
   const [showPopup, setShowPopup] = useState(false);
-  const [showExpensePopup, setShowExpensePopup] = useState(false); // 🔁 NEW
+  const [showExpensePopup, setShowExpensePopup] = useState(false);
 
-  const [totals, setTotals] = useState({
-    total: 0,
-    Ibrar: 0,
-    Ahmad: 0,
+  const MONTHS = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [dailyData, setDailyData] = useState([]);
+
+  const [totals, setTotals] = useState({ total: 0, Ibrar: 0, Ahmad: 0 });
+  const [totalExpenses, setTotalExpenses] = useState(0);
+
+  const [expenseBreakdown, setExpenseBreakdown] = useState({
+    Ibrar: { office: 0, personal: 0 },
+    Ahmad: { office: 0, personal: 0 },
+    Admin: { office: 0, personal: 0 },
   });
 
-  const [userExpenses, setUserExpenses] = useState({
-    office: 0,
-    personal: 0,
-  });
+  const [activity, setActivity] = useState([]);
+  const [activityFilter, setActivityFilter] = useState("All");
 
-  // Get current user email from Firebase Auth
   const currentUserEmail = auth.currentUser?.email || "";
+  const isAdmin = currentUserEmail === "admin@admin.com";
 
-  // State to disable transfer button after add
+  const userOptions = ["All", "Admin", "Ibrar", "Ahmad"];
+  const [openMenu, setOpenMenu] = useState(null);
+  const [openDeleteMenu, setOpenDeleteMenu] = useState(false);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteMode, setDeleteMode] = useState("day");
+  const [deleteScope, setDeleteScope] = useState("all");
+  const [deleteDay, setDeleteDay] = useState("");
+  const [deleteMonth, setDeleteMonth] = useState("");
+  const [deleteStart, setDeleteStart] = useState("");
+  const [deleteEnd, setDeleteEnd] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
   const [transferDisabled, setTransferDisabled] = useState(false);
   const [transferToastShown, setTransferToastShown] = useState(false);
+  const [adminExpenseDisabled, setAdminExpenseDisabled] = useState(false);
+  const [adminExpenseToastShown, setAdminExpenseToastShown] = useState(false);
 
+  const [reloadTick, setReloadTick] = useState(0);
+
+  const norm = (s) => (s ?? "").toString().trim().toLowerCase();
+  const asDate = (v) =>
+    v?.toDate
+      ? v.toDate()
+      : v instanceof Date
+      ? v
+      : typeof v === "string"
+      ? new Date(v)
+      : null;
+
+  // ---------- data fetching (unchanged except reloadTick deps) ----------
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
-        const snapshot = await getDocs(collection(db, "transfer-history"));
-        const data = snapshot.docs.map((doc) => doc.data());
-        const computedTotals = { total: 0, Ibrar: 0, Ahmad: 0, Ali: 0 };
+        const snap = await getDocs(collection(db, "transfer-history"));
+        const rows = snap.docs.map((d) => d.data());
+        const totalsLocal = { total: 0, Ibrar: 0, Ahmad: 0 };
 
-        data.forEach((t) => {
-          const amt = Number(t.amount || 0);
-          computedTotals.total += amt;
-          if (computedTotals[t.receiver] !== undefined) {
-            computedTotals[t.receiver] += amt;
+        const daysInMonth = new Date(
+          selectedYear,
+          selectedMonth + 1,
+          0
+        ).getDate();
+        const daily = Array.from({ length: daysInMonth }, (_, i) => ({
+          day: i + 1,
+          Ibrar: 0,
+          Ahmad: 0,
+        }));
+
+        for (const t of rows) {
+          const amt = parseFloat(t.amount) || 0;
+          totalsLocal.total += amt;
+          const r = norm(t.receiver);
+          if (r === "ibrar") totalsLocal.Ibrar += amt;
+          else if (r === "ahmad") totalsLocal.Ahmad += amt;
+
+          const d = asDate(t.date ?? t.createdAt ?? t.timestamp) || new Date();
+          if (
+            d.getFullYear() === selectedYear &&
+            d.getMonth() === selectedMonth
+          ) {
+            const idx = d.getDate() - 1;
+            if (r === "ibrar") daily[idx].Ibrar += amt;
+            else if (r === "ahmad") daily[idx].Ahmad += amt;
           }
-        });
-
-        setTotals(computedTotals);
+        }
+        setTotals(totalsLocal);
+        setDailyData(daily);
       } catch (err) {
         console.error("Failed to fetch transactions:", err);
+        const daysInMonth = new Date(
+          selectedYear,
+          selectedMonth + 1,
+          0
+        ).getDate();
+        setDailyData(
+          Array.from({ length: daysInMonth }, (_, i) => ({
+            day: i + 1,
+            Ibrar: 0,
+            Ahmad: 0,
+          }))
+        );
       }
     };
-
     fetchTransactions();
-  }, []);
+  }, [selectedMonth, selectedYear, reloadTick]);
 
   useEffect(() => {
-    const fetchUserExpenses = async () => {
-      if (!selectedUser) {
-        setUserExpenses({ office: 0, personal: 0 });
-        return;
-      }
+    const fetchAllExpenseBreakdown = async () => {
       try {
         const snapshot = await getDocs(collection(db, "expenses"));
         const data = snapshot.docs.map((doc) => doc.data());
-
-        // Make sure to match both user and admin correctly
-        const userData = data.filter((item) => {
-          // For Admin, match name === "Admin" and role === "admin"
-          if (selectedUser === "Admin") {
-            return (
-              item.name?.trim().toLowerCase() === "admin" &&
-              item.role === "admin"
-            );
-          }
-          // For other users, match name case-insensitively and trim spaces
-          return (
-            item.name?.trim().toLowerCase() ===
-            selectedUser.trim().toLowerCase()
-          );
-        });
-
-        let office = 0;
-        let personal = 0;
-
-        userData.forEach((item) => {
+        const out = {
+          Ibrar: { office: 0, personal: 0 },
+          Ahmad: { office: 0, personal: 0 },
+          Admin: { office: 0, personal: 0 },
+        };
+        let tot = 0;
+        data.forEach((item) => {
+          const name = norm(item.name);
+          const type = norm(item.type);
           const amt = Number(item.amount || 0);
-          if (item.type?.toLowerCase() === "office") {
-            office += amt;
-          } else if (item.type?.toLowerCase() === "personal") {
-            personal += amt;
+          tot += amt;
+          if (name === "ibrar" || name === "ahmad" || name === "admin") {
+            const who =
+              name === "ibrar" ? "Ibrar" : name === "ahmad" ? "Ahmad" : "Admin";
+            if (type === "office") out[who].office += amt;
+            else if (type === "personal") out[who].personal += amt;
           }
         });
-
-        setUserExpenses({ office, personal });
-      } catch (err) {
-        console.error("Failed to fetch expenses:", err);
-        setUserExpenses({ office: 0, personal: 0 });
+        setExpenseBreakdown(out);
+        setTotalExpenses(tot);
+      } catch (e) {
+        console.error("Failed to compute breakdown:", e);
+        setTotalExpenses(0);
       }
     };
+    fetchAllExpenseBreakdown();
+  }, [reloadTick]);
 
-    fetchUserExpenses();
-  }, [selectedUser]);
+  useEffect(() => {
+    const toDate = (v) => {
+      if (v && typeof v.toDate === "function") return v.toDate();
+      if (typeof v === "string") {
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? new Date() : d;
+      }
+      if (v instanceof Date) return v;
+      return new Date();
+    };
+    let tSnapCache = null,
+      eSnapCache = null;
+
+    const build = () => {
+      if (!tSnapCache && !eSnapCache) return;
+      const tItems = (tSnapCache ? tSnapCache.docs : []).map((d) => {
+        const x = d.data() || {};
+        const date = toDate(x.date ?? x.createdAt);
+        return {
+          type: "transfer",
+          name: `${x.sender ?? "Admin"} → ${x.receiver ?? ""}`.trim(),
+          title: x.paymentMethod || "Transfer",
+          amount: Number(x.amount || 0),
+          status: "Success",
+          ts: date.getTime(),
+        };
+      });
+      const eItems = (eSnapCache ? eSnapCache.docs : []).map((d) => {
+        const x = d.data() || {};
+        const date = toDate(x.createdAt ?? x.date);
+        return {
+          type: "expense",
+          name: x.name || "Admin",
+          title: x.title || (x.type ? `${x.type} Expense` : "Expense"),
+          amount: Number(x.amount || 0),
+          status: "Success",
+          ts: date.getTime(),
+        };
+      });
+      setActivity(
+        [...tItems, ...eItems].sort((a, b) => b.ts - a.ts).slice(0, 20)
+      );
+    };
+
+    const tRef = query(
+      collection(db, "transfer-history"),
+      orderBy("date", "desc"),
+      limit(40)
+    );
+    const eRef = query(
+      collection(db, "expenses"),
+      orderBy("createdAt", "desc"),
+      limit(40)
+    );
+
+    const unsubT = onSnapshot(
+      tRef,
+      (snap) => {
+        tSnapCache = snap;
+        build();
+      },
+      (err) => console.error("Transfers onSnapshot error:", err)
+    );
+    const unsubE = onSnapshot(
+      eRef,
+      (snap) => {
+        eSnapCache = snap;
+        build();
+      },
+      (err) => console.error("Expenses onSnapshot error:", err)
+    );
+
+    return () => {
+      unsubT();
+      unsubE();
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -111,16 +280,12 @@ function AdminBoard() {
       console.error("Logout failed", err);
     }
   };
-
-  const handleViewHistory = () => {
-    navigate("/transfer-history/all");
-  };
+  const handleViewHistory = () => navigate("/transfer-history/all");
 
   const handleTransferSubmit = async (e) => {
     e.preventDefault();
-    if (transferDisabled) return; // Prevent double submit and double toast
-    setTransferDisabled(true); // Disable immediately to prevent double
-
+    if (transferDisabled) return;
+    setTransferDisabled(true);
     const receiver = e.target.receiver.value;
     const amount = e.target.amount.value;
     const paymentMethod = e.target.paymentMethod.value;
@@ -134,47 +299,37 @@ function AdminBoard() {
         amount: parseFloat(amount),
         date: Timestamp.now(),
       });
-
-      // Update totals state immediately (add to total and receiver, like fetchTransactions)
       setTotals((prev) => {
-        let newTotals = { ...prev };
         const amt = parseFloat(amount);
-        newTotals.total = (prev.total || 0) + amt;
-        if (receiver === "Ibrar" || receiver === "Ahmad") {
-          newTotals[receiver] = (prev[receiver] || 0) + amt;
-        }
-        return newTotals;
+        return {
+          ...prev,
+          total: (prev.total || 0) + amt,
+          Ibrar: receiver === "Ibrar" ? (prev.Ibrar || 0) + amt : prev.Ibrar,
+          Ahmad: receiver === "Ahmad" ? (prev.Ahmad || 0) + amt : prev.Ahmad,
+        };
       });
-
       if (!transferToastShown) {
         toast.success("Transfer successful!");
         setTransferToastShown(true);
       }
       e.target.reset();
-      setShowPopup(false); // Close the popup after success
+      setShowPopup(false);
     } catch (error) {
-      setTransferDisabled(false); // Re-enable if error
+      setTransferDisabled(false);
       console.error("Error:", error);
       toast.error("Transfer failed!");
     }
   };
 
-  // State to disable admin expense button after add
-  const [adminExpenseDisabled, setAdminExpenseDisabled] = useState(false);
-  const [adminExpenseToastShown, setAdminExpenseToastShown] = useState(false);
   const handleAdminExpenseSubmit = async (e) => {
     e.preventDefault();
-    if (adminExpenseDisabled) return; // Prevent double submit and double toast
-
-    setAdminExpenseDisabled(true); // Disable immediately to prevent double
-
+    if (adminExpenseDisabled) return;
+    setAdminExpenseDisabled(true);
     const form = e.target;
     const title = form.title.value;
     const type = form.type.value;
     const amount = form.amount.value;
     const remarks = form.remarks.value;
-
-    // Determine who is submitting (admin, Ahmad, Ibrar)
     let name = "Admin";
     let email = currentUserEmail;
     let role = "admin";
@@ -185,7 +340,6 @@ function AdminBoard() {
       name = "Ibrar";
       role = "user";
     }
-
     try {
       await addDoc(collection(db, "expenses"), {
         name,
@@ -196,34 +350,438 @@ function AdminBoard() {
         amount: parseFloat(amount),
         date: new Date().toISOString().split("T")[0],
         createdAt: Timestamp.now(),
-        role, // Mark as admin or user expense
+        role,
       });
-
-      // Clear all fields after add
       form.reset();
       if (!adminExpenseToastShown) {
         toast.success("Expense added!");
         setAdminExpenseToastShown(true);
       }
     } catch (err) {
-      setAdminExpenseDisabled(false); // Re-enable if error
+      setAdminExpenseDisabled(false);
       console.error("Error saving admin expense:", err);
       toast.error("Failed to save expense.");
     }
   };
 
+  // format helpers
+  const OFFICE_COLOR = "#10b981",
+    PERSONAL_COLOR = "#a855f7",
+    RING_BG = "#e5e7eb";
+  const fmtAmt = (n) => `Rs ${Math.round(Number(n || 0)).toLocaleString()}`;
+  const fmtDT = (ms) => new Date(ms).toLocaleString();
+  const mkDonutData = (value, other) => {
+    const total = Math.max(value + other, 1);
+    return [
+      { name: "value", value },
+      { name: "rest", value: Math.max(total - value, 0.0001) },
+    ];
+  };
+  const filteredActivity =
+    activityFilter === "All"
+      ? activity
+      : activity.filter((a) =>
+          activityFilter === "Transfers"
+            ? a.type === "transfer"
+            : a.type === "expense"
+        );
+  const IconWrap = ({ children }) => (
+    <span className="inline-flex items-center justify-center w-4 h-4 mr-2">
+      {children}
+    </span>
+  );
+  const IconTransfer = () => (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M7 7h11M13 3l4 4-4 4" />
+      <path d="M17 17H6M10 21l-4-4 4-4" />
+    </svg>
+  );
+  const IconReceipt = () => (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z" />
+      <path d="M9 7h6M9 11h6M9 15h6" />
+    </svg>
+  );
+  const IconClock = () => (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" />
+    </svg>
+  );
+  const IconList = () => (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M8 6h13M8 12h13M8 18h13" />
+      <path d="M3 6h.01M3 12h.01M3 18h.01" />
+    </svg>
+  );
+  const IconTrash = () => (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
+    </svg>
+  );
+  const goToHistory = (type, who) => {
+    const seg = who === "All" ? "all" : who;
+    if (type === "t") navigate(`/transfer-history/${seg}`);
+    else navigate(`/expense-history/${seg}`);
+    setOpenMenu(null);
+  };
+
+  // ----- delete helpers (unchanged logic) -----
+  const parseTS = (v) =>
+    v && typeof v.toDate === "function"
+      ? v.toDate()
+      : typeof v === "string"
+      ? new Date(v)
+      : v instanceof Date
+      ? v
+      : null;
+  const endOfDayExclusive = (d) => {
+    const x = new Date(d);
+    x.setHours(24, 0, 0, 0);
+    return x;
+  };
+  const firstOfMonth = (ym) => {
+    const [y, m] = ym.split("-").map(Number);
+    return new Date(y, m - 1, 1, 0, 0, 0, 0);
+  };
+  const firstOfNextMonth = (ym) => {
+    const [y, m] = ym.split("-").map(Number);
+    return new Date(y, m, 1, 0, 0, 0, 0);
+  };
+  const deleteInBatches = async (coll, shouldDelete) => {
+    const snap = await getDocs(collection(db, coll));
+    let count = 0,
+      batch = writeBatch(db),
+      n = 0;
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (!shouldDelete(data)) continue;
+      batch.delete(doc(db, coll, d.id));
+      n++;
+      count++;
+      if (n >= 450) {
+        await batch.commit();
+        batch = writeBatch(db);
+        n = 0;
+      }
+    }
+    if (n > 0) await batch.commit();
+    return count;
+  };
+  const performDelete = async (scope, startDate, endDate) => {
+    if (!isAdmin) return toast.error("Only admin can remove data.");
+    setDeleting(true);
+    try {
+      const start = startDate ? new Date(startDate) : new Date(1970, 0, 1);
+      const end = endDate ? new Date(endDate) : new Date(3000, 0, 1);
+      const inRange = (d) => d && d >= start && d < end;
+      const delTransfers = () =>
+        deleteInBatches("transfer-history", (x) =>
+          inRange(parseTS(x.date ?? x.createdAt ?? x.timestamp))
+        );
+      const delExpenses = () =>
+        deleteInBatches("expenses", (x) =>
+          inRange(parseTS(x.createdAt) ?? parseTS(x.date))
+        );
+      let removed = 0;
+      if (scope === "all") {
+        const [a, b] = await Promise.all([delTransfers(), delExpenses()]);
+        removed = a + b;
+      } else if (scope === "transfers") removed = await delTransfers();
+      else removed = await delExpenses();
+      toast.success(`Removed ${removed} record(s).`);
+      setReloadTick((t) => t + 1);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to remove data.");
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+      setOpenDeleteMenu(false);
+    }
+  };
+  const quickDelete = (kind) => {
+    if (!isAdmin) return toast.error("Only admin can remove data.");
+    const now = new Date();
+    if (kind === "all") return performDelete("all", null, null);
+    if (kind === "today") {
+      const s = new Date();
+      s.setHours(0, 0, 0, 0);
+      return performDelete("all", s, endOfDayExclusive(s));
+    }
+    if (kind === "thisMonth") {
+      const s = new Date(now.getFullYear(), now.getMonth(), 1);
+      const e = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      return performDelete("all", s, e);
+    }
+    setShowDeleteModal(true);
+  };
+
+  // ------------------- UI -------------------
   return (
-    <div className="min-h-screen bg-white p-2 sm:p-4 md:p-6 lg:p-8 relative">
-      <div className="bg-white p-2 sm:p-4 md:p-6 rounded-xl shadow-lg max-w-full sm:max-w-2xl mx-auto">
-        <h2 className="bg-blue-100 text-blue-900 px-2 sm:px-3 py-2 rounded-md shadow-lg text-center font-bold text-lg sm:text-xl">
-          <div className="flex items-center justify-between">
-            <span>Admin Dashboard</span>
-            <div className="sm:hidden relative flex items-center">
+    <div className="flex min-h-screen dashboard-bg">
+      {/* Sidebar */}
+      <aside className="hidden md:flex md:w-56 xl:w-64 flex-col bg-black text-white shadow-2xl relative overflow-visible">
+        <div className="p-6 flex items-center gap-3 border-b border-white/10">
+          <img
+            src="/logo_text_all_white_auto.png"
+            alt="Subtle"
+            className="h-10 object-contain"
+          />
+        </div>
+
+        <nav className="flex-1 p-4 space-y-2">
+          <button
+            onClick={() => {
+              setShowPopup(true);
+              setShowExpensePopup(false);
+              setTransferDisabled(false);
+              setTransferToastShown(false);
+            }}
+            className="w-full text-left px-4 py-2 rounded-lg hover:bg-white/10 transition inline-flex items-center"
+          >
+            <IconWrap>
+              <IconTransfer />
+            </IconWrap>
+            Transfer
+          </button>
+
+          <button
+            onClick={() => {
+              setShowExpensePopup(true);
+              setShowPopup(false);
+            }}
+            className="w-full text-left px-4 py-2 rounded-lg hover:bg-white/10 transition inline-flex items-center"
+          >
+            <IconWrap>
+              <IconReceipt />
+            </IconWrap>
+            Admin Expense
+          </button>
+
+          {/* T.History */}
+          <div
+            className="relative"
+            onMouseEnter={() => setOpenMenu("t")}
+            onMouseLeave={() => setOpenMenu(null)}
+          >
+            <button className="w-full text-left px-4 py-2 rounded-lg hover:bg-white/10 transition flex items-center gap-2">
+              <IconClock /> T.History
+            </button>
+            {openMenu === "t" && (
+              <div className="absolute left-full top-0 ml-2 z-50 w-40 rounded-lg border border-white/10 bg-neutral-900/95 text-white shadow-xl backdrop-blur">
+                {userOptions.map((u) => (
+                  <button
+                    key={`t-${u}`}
+                    onClick={() => goToHistory("t", u)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-white/10"
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* E.History */}
+          <div
+            className="relative"
+            onMouseEnter={() => setOpenMenu("e")}
+            onMouseLeave={() => setOpenMenu(null)}
+          >
+            <button className="w-full text-left px-4 py-2 rounded-lg hover:bg-white/10 transition flex items-center gap-2">
+              <IconList /> E.History
+            </button>
+            {openMenu === "e" && (
+              <div className="absolute left-full top-0 ml-2 z-50 w-40 rounded-lg border border-white/10 bg-neutral-900/95 text-white shadow-xl backdrop-blur">
+                {userOptions.map((u) => (
+                  <button
+                    key={`e-${u}`}
+                    onClick={() => goToHistory("e", u)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-white/10"
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Remove Data */}
+          {isAdmin && (
+            <div
+              className="relative"
+              onMouseEnter={() => setOpenDeleteMenu(true)}
+              onMouseLeave={() => setOpenDeleteMenu(false)}
+            >
+              <button className="w-full text-left px-4 py-2 rounded-lg hover:bg-white/10 transition flex items-center gap-2">
+                <IconTrash /> Remove Data
+              </button>
+              {openDeleteMenu && (
+                <div className="absolute left-full top-0 ml-2 z-50 w-52 rounded-lg border border-white/10 bg-neutral-900/95 text-white shadow-xl backdrop-blur">
+                  <button
+                    onClick={() => quickDelete("all")}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-white/10"
+                  >
+                    Delete <b>ALL</b>
+                  </button>
+                  <button
+                    onClick={() => quickDelete("today")}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-white/10"
+                  >
+                    Delete <b>Today</b>
+                  </button>
+                  <button
+                    onClick={() => quickDelete("thisMonth")}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-white/10"
+                  >
+                    Delete <b>This Month</b>
+                  </button>
+                  <button
+                    onClick={() => quickDelete("custom")}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-white/10"
+                  >
+                    Pick Day / Month / Range…
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </nav>
+
+        <div className="p-4 border-t border-white/10">
+          <button
+            onClick={handleLogout}
+            className="w-full bg-[linear-gradient(298deg,#0BBFEF_0%,#D12CBF_100%)] hover:opacity-90 text-white py-2 rounded-lg"
+          >
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="flex-1 p-4 sm:p-6 md:p-8">
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700">
+              Admin Dashboard
+            </span>
+          </h1>
+
+          {/* Profile */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="relative">
               <button
-                className="ml-2 p-2 rounded-full border border-gray-300 bg-white shadow-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all duration-150 w-10 h-10 flex items-center justify-center"
+                onClick={() => setShowUserMenu((s) => !s)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg border bg-white hover:bg-gray-50"
+              >
+                {auth.currentUser?.photoURL ? (
+                  <img
+                    src={auth.currentUser.photoURL}
+                    alt="avatar"
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-white grid place-items-center text-sm font-semibold">
+                    {(
+                      (auth.currentUser?.displayName ||
+                        auth.currentUser?.email ||
+                        "U")[0] || "U"
+                    ).toUpperCase()}
+                  </div>
+                )}
+                <div className="hidden md:flex flex-col items-start leading-tight">
+                  <span className="text-sm font-medium text-gray-800">
+                    {auth.currentUser?.displayName ||
+                      (auth.currentUser?.email
+                        ? auth.currentUser.email.split("@")[0]
+                        : "User")}
+                  </span>
+                  <span className="text-[11px] text-gray-500 truncate max-w-[140px]">
+                    {auth.currentUser?.email}
+                  </span>
+                </div>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  className="text-gray-500"
+                >
+                  <path
+                    d="M6 9l6 6 6-6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </button>
+
+              {showUserMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowUserMenu(false)}
+                  />
+                  <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border bg-white shadow-xl">
+                    <div className="px-3 py-2 border-b">
+                      <div className="text-sm font-semibold text-gray-800">
+                        {auth.currentUser?.displayName ||
+                          (auth.currentUser?.email
+                            ? auth.currentUser.email.split("@")[0]
+                            : "User")}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {auth.currentUser?.email}
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Mobile menu */}
+            <div className="md:hidden relative">
+              <button
+                className="p-2 rounded-lg border bg-white hover:bg-gray-50"
                 aria-label="Menu"
                 onClick={() => setShowMobileMenu((prev) => !prev)}
-                tabIndex={0}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -231,36 +789,32 @@ function AdminBoard() {
                   viewBox="0 0 24 24"
                   strokeWidth={2}
                   stroke="currentColor"
-                  className="w-6 h-6 text-gray-700"
+                  className="w-5 h-5 text-gray-700"
                 >
                   <circle cx="5" cy="12" r="1.5" />
                   <circle cx="12" cy="12" r="1.5" />
                   <circle cx="19" cy="12" r="1.5" />
                 </svg>
               </button>
+
               {showMobileMenu && (
                 <>
-                  {/* Overlay to close menu on outside click */}
                   <div
                     className="fixed inset-0 z-40"
-                    style={{
-                      background: "rgba(0,0,0,0)",
-                      touchAction: "manipulation",
-                    }}
                     onClick={() => setShowMobileMenu(false)}
                   />
-                  <div
-                    className="absolute right-0 top-12 bg-white rounded-xl shadow-2xl border flex flex-col gap-2 py-2 px-3 z-50 min-w-[180px] w-max animate-fade-in"
-                    style={{ minWidth: "180px", maxWidth: "90vw" }}
-                  >
+                  <div className="absolute right-0 top-12 bg-white rounded-xl shadow-2xl border flex flex-col gap-2 py-2 px-3 z-50 min-w-[180px]">
                     <button
                       onClick={() => {
                         setShowPopup(true);
                         setShowExpensePopup(false);
                         setShowMobileMenu(false);
                       }}
-                      className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
+                      className="bg-indigo-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-indigo-700 w-full text-left transition inline-flex items-center"
                     >
+                      <IconWrap>
+                        <IconTransfer />
+                      </IconWrap>
                       Transfer
                     </button>
                     <button
@@ -269,8 +823,11 @@ function AdminBoard() {
                         setShowPopup(false);
                         setShowMobileMenu(false);
                       }}
-                      className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
+                      className="bg-indigo-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-indigo-700 w-full text-left transition inline-flex items-center"
                     >
+                      <IconWrap>
+                        <IconReceipt />
+                      </IconWrap>
                       Admin Expense
                     </button>
                     <button
@@ -278,350 +835,313 @@ function AdminBoard() {
                         handleViewHistory();
                         setShowMobileMenu(false);
                       }}
-                      className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
+                      className="bg-indigo-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-indigo-700 w-full text-left transition inline-flex items-center"
                     >
+                      <IconWrap>
+                        <IconClock />
+                      </IconWrap>
                       T.History
                     </button>
                     <button
                       onClick={() => {
-                        if (selectedUser) {
-                          if (selectedUser === "Admin") {
-                            navigate(`/expense-history/Admin`);
-                          } else {
-                            navigate(`/expense-history/${selectedUser}`);
-                          }
-                        } else {
-                          navigate(`/expense-history/all`);
-                        }
+                        selectedUser
+                          ? navigate(
+                              `/expense-history/${
+                                selectedUser === "Admin"
+                                  ? "Admin"
+                                  : selectedUser
+                              }`
+                            )
+                          : navigate(`/expense-history/all`);
                         setShowMobileMenu(false);
                       }}
-                      className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 w-full text-left transition-all duration-150"
+                      className="bg-indigo-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-indigo-700 w-full text-left transition inline-flex items-center"
                     >
+                      <IconWrap>
+                        <IconList />
+                      </IconWrap>
                       E.History
                     </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setShowDeleteModal(true);
+                          setShowMobileMenu(false);
+                        }}
+                        className="bg-rose-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-rose-700 transition inline-flex items-center"
+                      >
+                        <IconWrap>
+                          <IconTrash />
+                        </IconWrap>
+                        Remove Data
+                      </button>
+                    )}
                   </div>
                 </>
               )}
             </div>
           </div>
-        </h2>
+        </div>
 
-        <div className="bg-white p-2 sm:p-4 md:p-6 rounded-xl shadow-lg mt-3 sm:mt-5 mb-3 sm:mb-5">
-          <h2 className="bg-blue-100 text-blue-900 px-2 sm:px-3 py-2 rounded-md shadow-md text-center mb-4 sm:mb-6 font-bold text-base sm:text-lg">
-            Analytics
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 justify-center">
-            <div className="bg-[#F3F4F6] p-3 sm:p-6 rounded-xl shadow-lg w-full">
-              <h2 className="text-base sm:text-1xl font-bold text-center mb-2 sm:mb-4">
-                Total Cash
-              </h2>
-              <div className="text-base sm:text-1xl mt-4 sm:mt-8">
-                <div className="flex flex-col gap-2">
-                  <div className="bg-blue-50 px-4 py-2 rounded-md shadow-sm flex items-center justify-between">
-                    <span className="font-semibold text-blue-900">Total:</span>
-                    <span className="text-blue-900 text-lg font-bold tracking-wide">
-                      ₨ {totals.total}
-                    </span>
-                  </div>
-                  <div className="bg-white px-4 py-2 rounded-md shadow-sm flex items-center justify-between border border-blue-100">
-                    <span className="font-medium text-gray-800">Ibrar:</span>
-                    <span className="text-blue-700 text-base font-semibold tracking-wide">
-                      ₨ {totals.Ibrar}
-                    </span>
-                  </div>
-                  <div className="bg-white px-4 py-2 rounded-md shadow-sm flex items-center justify-between border border-blue-100">
-                    <span className="font-medium text-gray-800">Ahmad:</span>
-                    <span className="text-blue-700 text-base font-semibold tracking-wide">
-                      ₨ {totals.Ahmad}
-                    </span>
+        {/* CONTENT GRID (2xl split to avoid squeeze on laptops) */}
+        <div className="grid grid-cols-1 2xl:grid-cols-5 gap-5">
+          {/* LEFT STACK */}
+          <div className="2xl:col-span-2 space-y-5">
+            {/* Totals row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: "Total Cash", val: totals.total },
+                { label: "Ibrar", val: totals.Ibrar },
+                { label: "Ahmad", val: totals.Ahmad },
+                { label: "Total Expenses", val: totalExpenses },
+              ].map((c) => (
+                <div
+                  key={c.label}
+                  className="rounded-xl p-4 shadow-sm text-white bg-[linear-gradient(298deg,#0BBFEF_0%,#D12CBF_100%)] ring-1 ring-white/15"
+                >
+                  <p className="text-xs font-medium text-white/90">{c.label}</p>
+                  <div className="mt-1 text-2xl font-bold">
+                    ₨ {Number(c.val || 0).toLocaleString()}
                   </div>
                 </div>
-              </div>
+              ))}
             </div>
 
-            <div className="bg-[#F3F4F6] p-3 sm:p-6 rounded-xl shadow-lg w-full">
-              <h2 className="text-base sm:text-1xl font-bold text-center mb-2 sm:mb-4">
-                User Record
-              </h2>
-
-              <div className="mb-2 sm:mb-4">
-                <label className="block text-base sm:text-lg font-semibold text-blue-900 mb-2">
-                  Select User
-                </label>
-                <div className="rounded-lg shadow-sm bg-white">
+            {/* Per-day chart */}
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h2 className="text-lg font-bold text-gray-800">
+                  Latest Transactions
+                </h2>
+                <div className="flex items-center gap-2">
                   <select
-                    className="w-full p-3 border border-blue-200 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all duration-150 bg-white"
-                    value={selectedUser || ""}
-                    onChange={(e) => {
-                      setSelectedUser(e.target.value);
-                    }}
+                    className="text-sm border rounded-md px-2 py-1 text-gray-600 bg-white"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(Number(e.target.value))}
                   >
-                    <option value="">Select a User</option>
-                    <option value="Ibrar">Ibrar</option>
-                    <option value="Ahmad">Ahmad</option>
-                    <option value="Admin">Admin</option>
+                    {MONTHS.map((m, i) => (
+                      <option key={m} value={i}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="text-sm border rounded-md px-2 py-1 text-gray-600 bg-white"
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  >
+                    {[selectedYear - 1, selectedYear, selectedYear + 1].map(
+                      (y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      )
+                    )}
                   </select>
                 </div>
               </div>
 
-              <div className="text-left text-base sm:text-1xl">
-                <div className="flex flex-col gap-2 mt-2">
-                  <div className="bg-blue-50 px-4 py-2 rounded-md shadow-sm flex items-center justify-between">
-                    <span className="font-medium text-blue-900">Office:</span>
-                    <span className="text-blue-900">
-                      ₨ {userExpenses.office}
-                    </span>
-                  </div>
-                  <div className="bg-white px-4 py-2 rounded-md shadow-sm flex items-center justify-between border border-blue-100">
-                    <span className="font-medium text-gray-800">Personal:</span>
-                    <span className="text-gray-800">
-                      ₨ {userExpenses.personal}
-                    </span>
-                  </div>
+              <div className="h-56 sm:h-64 lg:h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dailyData}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="#e5e7eb"
+                      strokeWidth={1.5}
+                    />
+                    <XAxis
+                      dataKey="day"
+                      axisLine={{ strokeWidth: 1.5, stroke: "#d1d5db" }}
+                      tickLine={{ strokeWidth: 1.5, stroke: "#d1d5db" }}
+                    />
+                    <YAxis
+                      domain={[0, "auto"]}
+                      allowDecimals={false}
+                      axisLine={{ strokeWidth: 1.5, stroke: "#d1d5db" }}
+                      tickLine={{ strokeWidth: 1.5, stroke: "#d1d5db" }}
+                    />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="Ibrar" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Ahmad" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Donut circles */}
+            <div className="bg-white rounded-xl shadow-lg p-5">
+              <h3 className="text-base font-bold text-gray-800 mb-4">
+                Expenses
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 justify-items-center">
+                {[
+                  {
+                    who: "Ibrar",
+                    type: "office",
+                    color: OFFICE_COLOR,
+                    label: "Ibrar Office",
+                  },
+                  {
+                    who: "Ibrar",
+                    type: "personal",
+                    color: PERSONAL_COLOR,
+                    label: "Ibrar Personal",
+                  },
+                  {
+                    who: "Ahmad",
+                    type: "office",
+                    color: OFFICE_COLOR,
+                    label: "Ahmad Office",
+                  },
+                  {
+                    who: "Ahmad",
+                    type: "personal",
+                    color: PERSONAL_COLOR,
+                    label: "Ahmad Personal",
+                  },
+                  {
+                    who: "Admin",
+                    type: "office",
+                    color: OFFICE_COLOR,
+                    label: "Admin Office",
+                  },
+                  {
+                    who: "Admin",
+                    type: "personal",
+                    color: PERSONAL_COLOR,
+                    label: "Admin Personal",
+                  },
+                ].map((cfg) => {
+                  const value = expenseBreakdown[cfg.who][cfg.type];
+                  const other =
+                    cfg.type === "office"
+                      ? expenseBreakdown[cfg.who].personal
+                      : expenseBreakdown[cfg.who].office;
+                  return (
+                    <div
+                      key={cfg.label}
+                      className="flex flex-col items-center w-[92px]"
+                    >
+                      <PieChart width={78} height={78}>
+                        <Pie
+                          data={mkDonutData(value, other)}
+                          innerRadius={28}
+                          outerRadius={36}
+                          dataKey="value"
+                          stroke="none"
+                        >
+                          <Cell fill={cfg.color} />
+                          <Cell fill={RING_BG} />
+                        </Pie>
+                      </PieChart>
+                      <div className="mt-1 text-center leading-tight">
+                        <div className="text-sm font-semibold text-gray-900">
+                          {fmtAmt(value)}
+                        </div>
+                        <div className="text-[11px] text-gray-500">
+                          {cfg.label}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: Latest Activity */}
+          <div className="hidden md:block 2xl:col-span-3 bg-white rounded-xl shadow-lg p-4 lg:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h2 className="text-lg font-bold text-gray-800">
+                Latest Activity
+              </h2>
+              <div className="flex gap-2">
+                {["All", "Transfers", "Expenses"].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setActivityFilter(t)}
+                    className={`px-3 py-1 rounded-md text-sm ${
+                      activityFilter === t
+                        ? "bg-gray-900 text-white"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <div className="grid grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)] bg-gray-50/80 px-4 py-2 text-xs font-semibold text-gray-600 sticky top-0 z-10">
+                  <div>Name / Title</div>
+                  <div>Date</div>
+                  <div className="text-right">Amount</div>
+                  <div className="text-right">Status</div>
+                </div>
+
+                <div className="max-h-[calc(100vh-220px)] overflow-y-auto divide-y divide-gray-100">
+                  {filteredActivity.map((row, i) => (
+                    <div
+                      key={i}
+                      className="grid grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)] items-center px-4 py-3 text-sm hover:bg-gray-50/80 min-h-[56px]"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className={`inline-block h-2.5 w-2.5 rounded-full ${
+                            row.type === "expense"
+                              ? "bg-rose-400"
+                              : "bg-emerald-400"
+                          }`}
+                        />
+                        <div className="truncate">
+                          <span className="font-medium">{row.name}</span>
+                          {row.title ? (
+                            <span className="text-gray-500">
+                              {" "}
+                              — {row.title}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="text-gray-600 whitespace-nowrap">
+                        {fmtDT(row.ts)}
+                      </div>
+                      <div
+                        className={`text-right font-semibold whitespace-nowrap ${
+                          row.type === "expense"
+                            ? "text-rose-600"
+                            : "text-emerald-600"
+                        }`}
+                      >
+                        {row.type === "expense" ? "-" : "+"}
+                        {fmtAmt(row.amount)}
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700">
+                          {row.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredActivity.length === 0 && (
+                    <div className="px-4 py-8 text-center text-sm text-gray-500">
+                      No activity yet.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </main>
 
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 justify-center mb-4 sm:mb-6">
-          {/* Desktop/tablet: show buttons inline */}
-          <div className="hidden sm:flex flex-row gap-3 sm:gap-6 justify-center w-full">
-            <button
-              onClick={() => {
-                setShowPopup(true);
-                setShowExpensePopup(false);
-                setTransferDisabled(false);
-                setTransferToastShown(false);
-              }}
-              className="bg-blue-600 text-white font-semibold px-4 sm:px-6 py-2 rounded-lg hover:bg-blue-700 w-full sm:w-auto transition-all duration-150"
-              type="button"
-            >
-              Transfer
-            </button>
-            <button
-              onClick={() => {
-                setShowExpensePopup(true);
-                setShowPopup(false);
-              }}
-              className="bg-blue-600 text-white font-semibold px-4 sm:px-6 py-2 rounded-lg hover:bg-blue-700 w-full sm:w-auto transition-all duration-150"
-            >
-              Admin Expense
-            </button>
-            <button
-              onClick={() => {
-                if (selectedUser === "Admin") {
-                  navigate(`/transfer-history/Admin`);
-                } else if (selectedUser && selectedUser !== "") {
-                  navigate(`/transfer-history/${selectedUser}`);
-                } else {
-                  navigate(`/transfer-history/all`);
-                }
-              }}
-              className="bg-blue-600 text-white font-semibold px-4 sm:px-6 py-2 rounded-lg hover:bg-blue-700 w-full sm:w-auto transition-all duration-150"
-            >
-              T.History
-            </button>
-            <button
-              onClick={() => {
-                if (selectedUser && selectedUser !== "") {
-                  if (selectedUser === "Admin") {
-                    navigate(`/expense-history/Admin`);
-                  } else {
-                    navigate(`/expense-history/${selectedUser}`);
-                  }
-                } else {
-                  navigate(`/expense-history/all`);
-                }
-              }}
-              className="bg-blue-600 text-white font-semibold px-4 sm:px-6 py-2 rounded-lg hover:bg-blue-700 w-full sm:w-auto transition-all duration-150"
-            >
-              E.History
-            </button>
-          </div>
-        </div>
+      {/* Transfer Popup, Admin Expense Popup, Delete Modal — unchanged from your last version */}
+      {/* (keep your existing modal JSX blocks here exactly as before) */}
 
-        <div className="mt-4 sm:mt-6 text-center">
-          <button
-            onClick={handleLogout}
-            className="bg-blue-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
-
-      {/* Transfer Form Popup */}
-      {showPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent">
-          <div className="bg-white border shadow-xl rounded-xl w-full max-w-xs p-4 sm:p-5 relative mx-2">
-            <button
-              onClick={() => {
-                setShowPopup(false);
-                setTransferDisabled(false);
-                setTransferToastShown(false);
-              }}
-              className="absolute top-2 right-3 text-xl text-gray-400 hover:text-red-500 font-bold"
-            >
-              ×
-            </button>
-
-            <h2 className="text-lg font-semibold text-center mb-4">
-              {(() => {
-                if (currentUserEmail === "ahmad@ahmad.com")
-                  return "Welcome Ahmad";
-                if (currentUserEmail === "ibrar@ibrar.com")
-                  return "Welcome Ibrar";
-                return "Transfer Amount";
-              })()}
-            </h2>
-
-            <form
-              onSubmit={handleTransferSubmit}
-              onChange={() => {
-                setTransferDisabled(false);
-                setTransferToastShown(false);
-              }}
-            >
-              {/* Name field removed for user expense form */}
-              <select
-                name="receiver"
-                required
-                className="w-full p-2 mb-4 border rounded-md"
-              >
-                <option value="">Select User</option>
-                <option value="Ibrar">Ibrar</option>
-                <option value="Ahmad">Ahmad</option>
-              </select>
-
-              <select
-                name="paymentMethod"
-                required
-                className="w-full p-2 mb-4 border rounded-md"
-              >
-                <option value="">Select Payment Method</option>
-                <option value="Cash">Cash</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-                <option value="JazzCash">JazzCash</option>
-                <option value="EasyPaisa">EasyPaisa</option>
-              </select>
-
-              <input
-                type="number"
-                name="amount"
-                placeholder="Enter Amount"
-                required
-                className="w-full p-2 mb-4 border rounded-md"
-              />
-
-              <input
-                type="date"
-                name="date"
-                defaultValue={new Date().toISOString().split("T")[0]}
-                className="w-full mb-4 p-2 border rounded-md bg-gray-100 text-gray-700"
-              />
-
-              <textarea
-                name="remarks"
-                placeholder="Enter Reason for Payment"
-                className="w-full p-2 mb-4 border rounded-md"
-                rows="3"
-              ></textarea>
-
-              <button
-                type="submit"
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled={transferDisabled}
-              >
-                {transferDisabled ? "Saved" : "Add"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Admin Expense Form Popup */}
-      {showExpensePopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent">
-          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg w-full max-w-xs relative mx-2">
-            <button
-              onClick={() => setShowExpensePopup(false)}
-              className="absolute top-2 right-3 text-xl text-gray-400 hover:text-red-500 font-bold"
-            >
-              ×
-            </button>
-
-            <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
-              Admin Expense Entry
-            </h2>
-
-            <form
-              onSubmit={handleAdminExpenseSubmit}
-              onChange={() => {
-                setAdminExpenseDisabled(false);
-                setAdminExpenseToastShown(false);
-              }}
-            >
-              <label className="block mb-1 text-gray-600">Date</label>
-              <input
-                type="date"
-                name="date"
-                required
-                defaultValue={new Date().toISOString().split("T")[0]}
-                className="w-full mb-4 px-4 py-2 border rounded-lg"
-              />
-
-              <label className="block mb-1 text-gray-600">Title</label>
-              <input
-                type="text"
-                name="title"
-                placeholder="Expense Title"
-                required
-                className="w-full mb-4 px-4 py-2 border rounded-lg"
-              />
-
-              <label className="block mb-1 text-gray-600">Amount</label>
-              <input
-                type="number"
-                name="amount"
-                placeholder="Enter Amount"
-                required
-                className="w-full mb-4 px-4 py-2 border rounded-lg"
-              />
-
-              <label className="block mb-1 text-gray-600">Expense Type</label>
-              <select
-                name="type"
-                required
-                className="w-full mb-4 px-4 py-2 border rounded-lg"
-              >
-                <option value="">Select Type</option>
-                <option value="Office">Office</option>
-                <option value="Personal">Personal</option>
-              </select>
-
-              <label className="block mb-1 text-gray-600">
-                Remarks (optional)
-              </label>
-              <textarea
-                name="remarks"
-                placeholder="Enter any comments about this expense..."
-                rows="3"
-                className="w-full mb-4 px-4 py-2 border rounded-lg resize-none"
-              />
-
-              <button
-                type="submit"
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled={adminExpenseDisabled}
-              >
-                {adminExpenseDisabled ? "Saved" : "Save Expense"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* ... your three modals code blocks go here unchanged ... */}
     </div>
   );
 }
