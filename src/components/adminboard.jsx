@@ -1138,10 +1138,382 @@ function AdminBoard() {
         </div>
       </main>
 
-      {/* Transfer Popup, Admin Expense Popup, Delete Modal — unchanged from your last version */}
-      {/* (keep your existing modal JSX blocks here exactly as before) */}
+      {/* Transfer Popup — VIP UI */}
+      {showPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="relative w-full max-w-md mx-3 rounded-2xl border border-white/20 bg-white/15 backdrop-blur-xl shadow-2xl">
+            <div className="h-1.5 w-full bg-[linear-gradient(298deg,#0BBFEF_0%,#D12CBF_100%)] rounded-t-2xl" />
+            <button
+              onClick={() => {
+                setShowPopup(false);
+                setTransferDisabled(false);
+                setTransferToastShown(false);
+              }}
+              className="absolute top-3 right-3 inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/25 border border-white/30 text-gray-700 hover:bg-white/40 font-bold"
+              aria-label="Close"
+            >
+              ×
+            </button>
 
-      {/* ... your three modals code blocks go here unchanged ... */}
+            <div className="p-5 sm:p-6">
+              <h2 className="text-xl font-extrabold text-gray-900 text-center">
+                {(() => {
+                  if (currentUserEmail === "ahmad@ahmad.com")
+                    return "Welcome Ahmad";
+                  if (currentUserEmail === "ibrar@ibrar.com")
+                    return "Welcome Ibrar";
+                  return "Transfer Amount";
+                })()}
+              </h2>
+
+              <form
+                onSubmit={handleTransferSubmit}
+                onChange={() => {
+                  setTransferDisabled(false);
+                  setTransferToastShown(false);
+                }}
+                className="mt-4 space-y-3"
+              >
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Select User
+                  </label>
+                  <select
+                    name="receiver"
+                    required
+                    className="w-full h-11 px-3 rounded-lg bg-white/85 text-gray-900 border border-white/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  >
+                    <option value="">Select User</option>
+                    <option value="Ibrar">Ibrar</option>
+                    <option value="Ahmad">Ahmad</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Payment Method
+                  </label>
+                  <select
+                    name="paymentMethod"
+                    required
+                    className="w-full h-11 px-3 rounded-lg bg-white/85 text-gray-900 border border-white/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  >
+                    <option value="">Select Payment Method</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="JazzCash">JazzCash</option>
+                    <option value="EasyPaisa">EasyPaisa</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Amount
+                  </label>
+                  <input
+                    type="number"
+                    name="amount"
+                    placeholder="Enter Amount"
+                    required
+                    className="w-full h-11 px-3 rounded-lg bg-white/85 text-gray-900 placeholder-gray-500 border border-white/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    name="date"
+                    defaultValue={new Date().toISOString().split("T")[0]}
+                    className="w-full h-11 px-3 rounded-lg bg-white/70 text-gray-800 border border-white/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Remarks
+                  </label>
+                  <textarea
+                    name="remarks"
+                    placeholder="Enter Reason for Payment"
+                    rows="3"
+                    className="w-full px-3 py-2 rounded-lg bg-white/85 text-gray-900 placeholder-gray-500 border border-white/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60 resize-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={transferDisabled}
+                  className="w-full h-11 rounded-lg text-white font-semibold shadow-lg bg-[linear-gradient(298deg,#0BBFEF_0%,#D12CBF_100%)] hover:opacity-95 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {transferDisabled ? "Saved" : "Add"}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Expense Popup — VIP UI */}
+      {showExpensePopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="relative w-full max-w-md mx-3 rounded-2xl border border-white/20 bg-white/15 backdrop-blur-xl shadow-2xl">
+            <div className="h-1.5 w-full bg-[linear-gradient(298deg,#0BBFEF_0%,#D12CBF_100%)] rounded-t-2xl" />
+            <button
+              onClick={() => setShowExpensePopup(false)}
+              className="absolute top-3 right-3 inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/25 border border-white/30 text-gray-700 hover:bg-white/40 font-bold"
+              aria-label="Close"
+            >
+              ×
+            </button>
+
+            <div className="p-5 sm:p-6">
+              <h2 className="text-xl font-extrabold text-gray-900 text-center">
+                Admin Expense Entry
+              </h2>
+
+              <form
+                onSubmit={handleAdminExpenseSubmit}
+                onChange={() => {
+                  setAdminExpenseDisabled(false);
+                  setAdminExpenseToastShown(false);
+                }}
+                className="mt-4 space-y-3"
+              >
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    name="date"
+                    required
+                    defaultValue={new Date().toISOString().split("T")[0]}
+                    className="w-full h-11 px-3 rounded-lg bg-white/70 text-gray-800 border border-white/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    name="title"
+                    placeholder="Expense Title"
+                    required
+                    className="w-full h-11 px-3 rounded-lg bg-white/85 text-gray-900 placeholder-gray-500 border border-white/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Amount
+                  </label>
+                  <input
+                    type="number"
+                    name="amount"
+                    placeholder="Enter Amount"
+                    required
+                    className="w-full h-11 px-3 rounded-lg bg-white/85 text-gray-900 placeholder-gray-500 border border-white/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Expense Type
+                  </label>
+                  <select
+                    name="type"
+                    required
+                    className="w-full h-11 px-3 rounded-lg bg-white/85 text-gray-900 border border-white/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+                  >
+                    <option value="">Select Type</option>
+                    <option value="Office">Office</option>
+                    <option value="Personal">Personal</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Remarks (optional)
+                  </label>
+                  <textarea
+                    name="remarks"
+                    placeholder="Enter any comments about this expense..."
+                    rows="3"
+                    className="w-full px-3 py-2 rounded-lg bg-white/85 text-gray-900 placeholder-gray-500 border border-white/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60 resize-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={adminExpenseDisabled}
+                  className="w-full h-11 rounded-lg text-white font-semibold shadow-lg bg-[linear-gradient(298deg,#0BBFEF_0%,#D12CBF_100%)] hover:opacity-95 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {adminExpenseDisabled ? "Saved" : "Save Expense"}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Data Modal (admin) */}
+      {showDeleteModal && isAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-bold">Remove Data</h3>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Scope */}
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm font-semibold text-gray-700">
+                  Scope:
+                </span>
+                {[
+                  { k: "all", label: "Transfers + Expenses" },
+                  { k: "transfers", label: "Transfers only" },
+                  { k: "expenses", label: "Expenses only" },
+                ].map((o) => (
+                  <label
+                    key={o.k}
+                    className="inline-flex items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="radio"
+                      name="scope"
+                      value={o.k}
+                      checked={deleteScope === o.k}
+                      onChange={(e) => setDeleteScope(e.target.value)}
+                    />
+                    {o.label}
+                  </label>
+                ))}
+              </div>
+
+              {/* Mode */}
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm font-semibold text-gray-700">By:</span>
+                {[
+                  { k: "day", label: "Day" },
+                  { k: "month", label: "Month" },
+                  { k: "range", label: "Date Range" },
+                ].map((o) => (
+                  <label
+                    key={o.k}
+                    className="inline-flex items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="radio"
+                      name="mode"
+                      value={o.k}
+                      checked={deleteMode === o.k}
+                      onChange={(e) => setDeleteMode(e.target.value)}
+                    />
+                    {o.label}
+                  </label>
+                ))}
+              </div>
+
+              {/* Inputs */}
+              {deleteMode === "day" && (
+                <div className="flex items-center gap-3">
+                  <input
+                    type="date"
+                    value={deleteDay}
+                    onChange={(e) => setDeleteDay(e.target.value)}
+                    className="w-full max-w-xs px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              )}
+              {deleteMode === "month" && (
+                <div className="flex items-center gap-3">
+                  <input
+                    type="month"
+                    value={deleteMonth}
+                    onChange={(e) => setDeleteMonth(e.target.value)}
+                    className="w-full max-w-xs px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              )}
+              {deleteMode === "range" && (
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <input
+                    type="date"
+                    value={deleteStart}
+                    onChange={(e) => setDeleteStart(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Start date"
+                  />
+                  <span className="text-gray-500">to</span>
+                  <input
+                    type="date"
+                    value={deleteEnd}
+                    onChange={(e) => setDeleteEnd(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="End date"
+                  />
+                </div>
+              )}
+
+              <div className="text-[13px] text-rose-600">
+                Warning: This operation permanently deletes matching records
+                from Firestore.
+              </div>
+
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="px-4 py-2 rounded-lg border"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={
+                    deleting ||
+                    (!deleteDay && deleteMode === "day") ||
+                    (!deleteMonth && deleteMode === "month") ||
+                    (deleteMode === "range" && (!deleteStart || !deleteEnd))
+                  }
+                  onClick={() => {
+                    if (deleteMode === "day") {
+                      const s = new Date(deleteDay);
+                      if (isNaN(+s)) return toast.error("Select a valid day.");
+                      const e = endOfDayExclusive(s);
+                      performDelete(deleteScope, s, e);
+                    } else if (deleteMode === "month") {
+                      if (!deleteMonth) return toast.error("Select a month.");
+                      const s = firstOfMonth(deleteMonth);
+                      const e = firstOfNextMonth(deleteMonth);
+                      performDelete(deleteScope, s, e);
+                    } else {
+                      const s = new Date(deleteStart);
+                      const e = endOfDayExclusive(new Date(deleteEnd));
+                      if (isNaN(+s) || isNaN(+e))
+                        return toast.error("Select a valid range.");
+                      performDelete(deleteScope, s, e);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-60"
+                >
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
