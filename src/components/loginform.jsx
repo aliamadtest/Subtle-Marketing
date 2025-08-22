@@ -39,8 +39,8 @@ function LoginForm() {
     {/* LEFT : logo (stays top on mobile) */}
     <div className="flex md:justify-end justify-center md:flex-[0_0_48%]">
       <img
-        src="public/logo_text_all_white_auto.png"
-{/*         alt="Subtle Marketing" */}
+        src="public\logo_text_all_white_auto.png"
+        alt="Subtle Marketing"
         className="h-24 md:h-28 object-contain"
       />
     </div>
