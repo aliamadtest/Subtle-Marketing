@@ -1,5 +1,7 @@
+/* src/components/print-fallback.css */
 /* Fallback print CSS to hide elements with print:hidden if Tailwind print plugin is not active */
 @media print {
+  /* Existing rules */
   .print\\:hidden,
   .print\:hidden,
   .print-hidden {
@@ -8,6 +10,146 @@
   /* Also hide all pagination buttons by selector as a last resort */
   .pagination,
   .pagination * {
+    display: none !important;
+  }
+
+  /* ---------- Page setup ---------- */
+  @page {
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* ---------- Layout normalization ---------- */
+  .items-center {
+    align-items: flex-start !important;
+  }
+  .justify-center {
+    justify-content: flex-start !important;
+  }
+  .min-h-screen {
+    min-height: auto !important;
+  }
+  .h-screen,
+  .h-full {
+    height: auto !important;
+  }
+  .p-4,
+  .p-5,
+  .p-6,
+  .sm\:p-6 {
+    padding: 0 !important;
+  }
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  /* Glass/alpha backgrounds -> white for print */
+  .backdrop-blur-xl,
+  .bg-white\/15,
+  .bg-white\/20,
+  .bg-white\/25,
+  .bg-white\/30,
+  .bg-white\/70,
+  .bg-white\/85,
+  .bg-gray-100,
+  .bg-gray-50\/80 {
+    background: #fff !important;
+  }
+
+  /* Radial overlay & accent bar off */
+  .pointer-events-none {
+    display: none !important;
+  }
+  .h-1\.5 {
+    display: none !important;
+  } /* top gradient bar */
+
+  /* Make text dark for legibility */
+  .text-white,
+  .text-white\/95,
+  .text-gray-900,
+  .text-gray-800,
+  .text-gray-700,
+  .text-gray-600 {
+    color: #000 !important;
+  }
+
+  /* Cards: no borders/shadows in print */
+  .rounded-2xl,
+  .rounded-xl,
+  .border,
+  .shadow,
+  .shadow-lg,
+  .shadow-2xl {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Container width full in print */
+  .w-full,
+  .max-w-6xl {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* ---------- TABLE fixes ---------- */
+  .table-fixed {
+    table-layout: auto !important;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  /* Remove min width so table fits page */
+  .min-w-\[680px\] {
+    min-width: 0 !important;
+  }
+
+  /* Column fixed widths -> auto in print */
+  .w-24,
+  .w-28,
+  .w-32,
+  .w-44,
+  .w-64 {
+    width: auto !important;
+  }
+
+  /* Sticky headers off; repeat header each page */
+  thead {
+    position: static !important;
+    display: table-header-group !important;
+  }
+  .sticky {
+    position: static !important;
+  }
+
+  th,
+  td {
+    padding: 6pt 8pt !important;
+    white-space: normal !important; /* wrap text */
+    word-break: break-word !important; /* long words */
+    vertical-align: top !important;
+  }
+
+  /* Try to avoid splitting rows across pages */
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /* Buttons/controls hidden in print */
+  button,
+  .btn {
     display: none !important;
   }
 }

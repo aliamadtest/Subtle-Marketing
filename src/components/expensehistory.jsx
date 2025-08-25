@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import db from "../firebase/firestore";
 import "./print-fallback.css";
+import * as XLSX from "xlsx"; // <-- .xlsx export
 
 function ExpenseHistory() {
   const [expenses, setExpenses] = useState([]);
@@ -59,18 +60,39 @@ function ExpenseHistory() {
   }, [user]);
 
   // --- helpers ---
+  const toDateObj = (timestamp) => {
+    if (!timestamp) return null;
+    if (timestamp.toDate) return timestamp.toDate();
+    if (typeof timestamp === "string") {
+      const d = new Date(timestamp);
+      return isNaN(d) ? null : d;
+    }
+    if (timestamp instanceof Date) return timestamp;
+    return null;
+  };
+
   const formatDate = (timestamp) => {
-    if (!timestamp) return "-";
-    let d;
-    if (timestamp.toDate) d = timestamp.toDate();
-    else if (typeof timestamp === "string") {
-      d = new Date(timestamp);
-      if (isNaN(d)) return timestamp;
-    } else if (timestamp instanceof Date) d = timestamp;
-    else return timestamp;
+    const d = toDateObj(timestamp);
+    if (!d) return "-";
     const day = String(d.getDate()).padStart(2, "0");
     const month = String(d.getMonth() + 1).padStart(2, "0");
     return `${day}-${month}`;
+  };
+
+  const formatFullDate = (timestamp) => {
+    const d = toDateObj(timestamp);
+    if (!d) return "";
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const displayNameFor = (exp) => {
+    if (exp.email === "ahmad@ahmad.com") return "Ahmad";
+    if (exp.email === "ibrar@ibrar.com") return "Ibrar";
+    if (exp.email === "admin@admin.com") return "Admin";
+    return exp.name || "N/A";
   };
 
   // --- pagination ---
@@ -153,6 +175,50 @@ function ExpenseHistory() {
       ? `${user} Expense History`
       : "Total Expense History";
 
+  // --- .xlsx export ---
+  const handleExport = () => {
+    const headers = [
+      "Date",
+      "Title",
+      "Amount (PKR)",
+      "Type",
+      "Remarks",
+      "Name",
+    ];
+
+    const rows = expenses.map((exp) => [
+      formatFullDate(exp.date || exp.createdAt),
+      exp.title || "N/A",
+      Number(exp.amount ?? 0),
+      exp.type || "N/A",
+      exp.remarks || "N/A",
+      displayNameFor(exp),
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+    // Optional widths for readability
+    ws["!cols"] = [
+      { wch: 12 }, // Date
+      { wch: 30 }, // Title
+      { wch: 14 }, // Amount
+      { wch: 12 }, // Type
+      { wch: 40 }, // Remarks
+      { wch: 14 }, // Name
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+
+    const safe = headingText.replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
+    const t = new Date();
+    const ymd = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(t.getDate()).padStart(2, "0")}`;
+    XLSX.writeFile(wb, `${safe}_${ymd}.xlsx`);
+  };
+
   // --- render ---
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-[#0d2b2c] px-3 sm:px-6">
@@ -178,26 +244,71 @@ function ExpenseHistory() {
                 {headingText}
               </h2>
 
-              {/* Print button */}
+              {/* Actions (Desktop/Tablet) */}
+              <div className="hidden sm:flex items-center gap-2 print:hidden">
+                {/* Print */}
+                <button
+                  onClick={() => window.print()}
+                  title="Print"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
+                             bg-white/20 text-white hover:bg-white/30 transition shadow"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 48 48"
+                    fill="currentColor"
+                  >
+                    <rect x="10" y="4" width="28" height="10" rx="2" />
+                    <rect x="8" y="14" width="32" height="18" rx="3" />
+                    <rect x="14" y="34" width="20" height="8" rx="1.5" />
+                  </svg>
+                  <span className="text-sm font-semibold">Print</span>
+                </button>
+
+                {/* Excel Export */}
+                <button
+                  onClick={handleExport}
+                  title="Export to Excel"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
+                             bg-white/20 text-white hover:bg-white/30 transition shadow"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 48 48"
+                    fill="currentColor"
+                  >
+                    <rect x="6" y="8" width="36" height="28" rx="4" />
+                    <path
+                      d="M16 20h16M16 26h10"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      fill="none"
+                    />
+                  </svg>
+                  <span className="text-sm font-semibold">Export to Excel</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile actions */}
+            <div className="flex sm:hidden justify-end gap-2 mb-3 print:hidden">
               <button
                 onClick={() => window.print()}
-                title="Print"
-                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
-                           bg-white/20 text-white hover:bg-white/30 transition shadow print:hidden"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
+                           bg-white/20 text-white hover:bg-white/30 transition shadow"
               >
-                {/* printer icon */}
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 48 48"
-                  fill="currentColor"
-                >
-                  <rect x="10" y="4" width="28" height="10" rx="2" />
-                  <rect x="8" y="14" width="32" height="18" rx="3" />
-                  <rect x="14" y="34" width="20" height="8" rx="1.5" />
-                </svg>
                 <span className="text-sm font-semibold">Print</span>
+              </button>
+              <button
+                onClick={handleExport}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
+                           bg-white/20 text-white hover:bg-white/30 transition shadow"
+              >
+                <span className="text-sm font-semibold">Export to Excel</span>
               </button>
             </div>
 
@@ -237,13 +348,7 @@ function ExpenseHistory() {
 
                         <span className="font-semibold">Name</span>
                         <span className="text-right">
-                          {exp.email === "ahmad@ahmad.com"
-                            ? "Ahmad"
-                            : exp.email === "ibrar@ibrar.com"
-                            ? "Ibrar"
-                            : exp.email === "admin@admin.com"
-                            ? "Admin"
-                            : exp.name || "N/A"}
+                          {displayNameFor(exp)}
                         </span>
                       </div>
                     </div>
@@ -278,15 +383,7 @@ function ExpenseHistory() {
                           <td className="px-3 py-2 break-words">
                             {exp.remarks || "N/A"}
                           </td>
-                          <td className="px-3 py-2">
-                            {exp.email === "ahmad@ahmad.com"
-                              ? "Ahmad"
-                              : exp.email === "ibrar@ibrar.com"
-                              ? "Ibrar"
-                              : exp.email === "admin@admin.com"
-                              ? "Admin"
-                              : exp.name || "N/A"}
-                          </td>
+                          <td className="px-3 py-2">{displayNameFor(exp)}</td>
                         </tr>
                       ))}
                     </tbody>

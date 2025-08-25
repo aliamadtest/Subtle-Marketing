@@ -160,7 +160,6 @@ function AdminBoard() {
     };
     fetchTransactions();
   }, [selectedMonth, selectedYear, reloadTick]);
-
   useEffect(() => {
     const fetchAllExpenseBreakdown = async () => {
       try {
@@ -549,9 +548,9 @@ function AdminBoard() {
 
   // ------------------- UI -------------------
   return (
-    <div className="flex min-h-screen dashboard-bg">
+    <div className="flex h-screen overflow-hidden dashboard-bg">
       {/* Sidebar */}
-      <aside className="hidden md:flex md:w-56 xl:w-64 flex-col bg-black text-white shadow-2xl relative overflow-visible">
+      <aside className="hidden md:flex fixed top-0 left-0 h-screen md:w-56 xl:w-64 flex-col bg-black text-white shadow-2xl z-20 overflow-visible">
         <div className="p-6 flex items-center gap-3 border-b border-white/10">
           <img
             src="/logo_text_all_white_auto.png"
@@ -690,7 +689,7 @@ function AdminBoard() {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 p-4 sm:p-6 md:p-8">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 md:ml-56 xl:ml-64 h-screen overflow-y-auto">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">

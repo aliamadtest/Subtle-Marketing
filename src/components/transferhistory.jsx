@@ -4,6 +4,7 @@ import "./print-fallback.css";
 import { collection, getDocs } from "firebase/firestore";
 import db from "../firebase/firestore";
 import { useNavigate, useParams } from "react-router-dom";
+import * as XLSX from "xlsx"; // <-- NEW: for .xlsx export
 
 function TransferHistory() {
   const [transfers, setTransfers] = useState([]);
@@ -149,6 +150,63 @@ function TransferHistory() {
       ? `${user} Transfer History`
       : "Total Transfer History";
 
+  // ---- Excel (.xlsx) export (CSV removed) ----
+  const formatFullDate = (d) => {
+    if (!d) return "";
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const handleExport = () => {
+    // headers
+    const headers = [
+      "Date",
+      "Amount (PKR)",
+      "User",
+      "Payment Method",
+      "Reason",
+    ];
+
+    // all filtered rows (not just current page)
+    const rows = transfers.map((item) => [
+      formatFullDate(bestDate(item)),
+      Number(item.amount ?? 0),
+      item.receiver || "—",
+      item.paymentMethod || "N/A",
+      item.remarks || "N/A",
+    ]);
+
+    // Build worksheet & workbook
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+    // Optional: a little width for readability
+    ws["!cols"] = [
+      { wch: 12 }, // Date
+      { wch: 14 }, // Amount
+      { wch: 16 }, // User
+      { wch: 18 }, // Payment Method
+      { wch: 40 }, // Reason
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Transfers");
+
+    // File name
+    const today = new Date();
+    const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(today.getDate()).padStart(2, "0")}`;
+    const fileSafeHeading = headingText
+      .replace(/\s+/g, "_")
+      .replace(/[^\w\-]/g, "");
+
+    // Download .xlsx
+    XLSX.writeFile(wb, `${fileSafeHeading}_${ymd}.xlsx`);
+  };
+
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-[#0d2b2c] px-3 sm:px-6">
       {/* radial brand overlay */}
@@ -173,25 +231,71 @@ function TransferHistory() {
                 {headingText}
               </h2>
 
-              {/* Print */}
+              {/* Actions (Desktop/Tablet) */}
+              <div className="hidden sm:flex items-center gap-2 print:hidden">
+                {/* Print */}
+                <button
+                  onClick={() => window.print()}
+                  title="Print"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
+                             bg-white/20 text-white hover:bg-white/30 transition shadow"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 48 48"
+                    fill="currentColor"
+                  >
+                    <rect x="10" y="4" width="28" height="10" rx="2" />
+                    <rect x="8" y="14" width="32" height="18" rx="3" />
+                    <rect x="14" y="34" width="20" height="8" rx="1.5" />
+                  </svg>
+                  <span className="text-sm font-semibold">Print</span>
+                </button>
+
+                {/* Excel Export */}
+                <button
+                  onClick={handleExport}
+                  title="Export to Excel"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
+                             bg-white/20 text-white hover:bg-white/30 transition shadow"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 48 48"
+                    fill="currentColor"
+                  >
+                    <rect x="6" y="8" width="36" height="28" rx="4" />
+                    <path
+                      d="M16 20h16M16 26h10"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      fill="none"
+                    />
+                  </svg>
+                  <span className="text-sm font-semibold">Export to Exel</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile actions */}
+            <div className="flex sm:hidden justify-end gap-2 mb-3 print:hidden">
               <button
                 onClick={() => window.print()}
-                title="Print"
-                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
-                           bg-white/20 text-white hover:bg-white/30 transition shadow print:hidden"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
+                           bg-white/20 text-white hover:bg-white/30 transition shadow"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 48 48"
-                  fill="currentColor"
-                >
-                  <rect x="10" y="4" width="28" height="10" rx="2" />
-                  <rect x="8" y="14" width="32" height="18" rx="3" />
-                  <rect x="14" y="34" width="20" height="8" rx="1.5" />
-                </svg>
                 <span className="text-sm font-semibold">Print</span>
+              </button>
+              <button
+                onClick={handleExport}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/30
+                           bg-white/20 text-white hover:bg-white/30 transition shadow"
+              >
+                <span className="text-sm font-semibold">Export to Excel</span>
               </button>
             </div>
 
