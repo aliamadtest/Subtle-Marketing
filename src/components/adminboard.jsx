@@ -32,8 +32,15 @@ import {
 } from "firebase/firestore";
 import db from "../firebase/firestore";
 
+// 👉 new imports for notifications
+import app from "../firebase/config";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { requestBossToken, onForeground } from "../firebase/messaging";
+
 function AdminBoard() {
   // ---------- state & helpers unchanged ----------
+  const WORKER = "https://bosspushnotification.zainsajjad-903.workers.dev";
+  const AUTH = "my-secret-123";
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const navigate = useNavigate();
@@ -103,6 +110,51 @@ function AdminBoard() {
       : typeof v === "string"
       ? new Date(v)
       : null;
+
+  // 👉 NEW useEffect: subscribe boss device for notifications
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      try {
+        const token = await requestBossToken(); // tumhari messaging.js wala
+        await fetch(`${WORKER}/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Auth": AUTH },
+          body: JSON.stringify({ token }),
+        });
+
+        // foreground notification -> toast
+        onForeground((p) => {
+          const t = p?.notification?.title || "New Expense";
+          const b = p?.notification?.body || "";
+          toast.info(`${t}: ${b}`);
+        });
+
+        console.log("Boss token registered (HTTP v1)");
+      } catch (e) {
+        console.error("Boss notification setup failed", e);
+      }
+    })();
+  }, [isAdmin]);
+  const notifyBoss = async ({ who, amount, note }) => {
+    const headers = { "Content-Type": "application/json" };
+    if (AUTH) headers["X-Auth"] = AUTH;
+
+    try {
+      await fetch(`${WORKER}/notify`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          to: "boss", // <— sirf boss
+          who, // Ahmad | Ibrar
+          amount: Number(amount),
+          note: note || "",
+        }),
+      });
+    } catch (e) {
+      console.error("notifyBoss failed", e);
+    }
+  };
 
   // ---------- data fetching (unchanged except reloadTick deps) ----------
   useEffect(() => {
@@ -351,6 +403,17 @@ function AdminBoard() {
         createdAt: Timestamp.now(),
         role,
       });
+      if (
+        currentUserEmail === "ahmad@ahmad.com" ||
+        currentUserEmail === "ibrar@ibrar.com"
+      ) {
+        const note = title || remarks || "";
+        fetch(`${WORKER}/notify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Auth": AUTH },
+          body: JSON.stringify({ who: name, amount: Number(amount), note }),
+        }).catch(() => {});
+      }
       form.reset();
       if (!adminExpenseToastShown) {
         toast.success("Expense added!");

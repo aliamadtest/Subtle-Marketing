@@ -7,6 +7,33 @@ import { collection, addDoc, Timestamp } from "firebase/firestore";
 import db from "../firebase/firestore";
 import { toast } from "react-toastify";
 
+/** 🔔 Worker config (env se lo; warna default) */
+const WORKER =
+  import.meta.env.VITE_WORKER_URL ||
+  "https://bosspushnotification.zainsajjad-903.workers.dev";
+const AUTH = import.meta.env.VITE_WORKER_AUTH || "";
+
+/** 🔔 Boss ko push bhejne ka helper (Ahmed/Ibrar expense par) */
+async function notifyBoss({ who, amount, note }) {
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (AUTH) headers["X-Auth"] = AUTH;
+
+    await fetch(`${WORKER}/notify`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        to: "boss", // sirf boss
+        who,
+        amount: Number(amount),
+        note: note || "",
+      }),
+    });
+  } catch (e) {
+    console.error("notifyBoss failed", e);
+  }
+}
+
 function ExpenseEntryPage() {
   // Allowed emails
   const allowedEmails = [
@@ -115,6 +142,7 @@ function ExpenseEntryPage() {
     }
 
     try {
+      // Save to Firestore
       await addDoc(collection(db, "expenses"), {
         date,
         title,
@@ -126,6 +154,18 @@ function ExpenseEntryPage() {
         name,
         email: currentUserEmail,
       });
+
+      // ✅ Sirf Ahmad/Ibrar par boss ko push
+      if (
+        currentUserEmail === "ahmad@ahmad.com" ||
+        currentUserEmail === "ibrar@ibrar.com"
+      ) {
+        // title ko preference, warna remarks ko note bana do
+        const note = title || remarks || "";
+        // background me fire — fail ho bhi jaye to expense save ho chuka hoga
+        notifyBoss({ who: name, amount, note });
+      }
+
       e.target.reset();
       toast.success("Expense saved successfully!");
     } catch (error) {
