@@ -953,9 +953,35 @@ function AdminBoard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {[
                 { label: "Total Cash", val: totals.total },
-                { label: "Ibrar", val: totals.Ibrar },
-                { label: "Ahmad", val: totals.Ahmad },
+                { label: "Transferred to Ahmad", val: totals.Ahmad },
+                { label: "Transferred to Ibrar", val: totals.Ibrar },
                 { label: "Total Expenses", val: totalExpenses },
+                {
+                  label: "Ahmad Balance",
+                  val:
+                    totals.Ahmad -
+                    (expenseBreakdown.Ahmad.office +
+                      expenseBreakdown.Ahmad.personal),
+                },
+                {
+                  label: "Ibrar Balance",
+                  val:
+                    totals.Ibrar -
+                    (expenseBreakdown.Ibrar.office +
+                      expenseBreakdown.Ibrar.personal),
+                },
+                {
+                  label: "Ahmad Spent",
+                  val:
+                    expenseBreakdown.Ahmad.office +
+                    expenseBreakdown.Ahmad.personal,
+                },
+                {
+                  label: "Ibrar Spent",
+                  val:
+                    expenseBreakdown.Ibrar.office +
+                    expenseBreakdown.Ibrar.personal,
+                },
               ].map((c) => (
                 <div
                   key={c.label}
