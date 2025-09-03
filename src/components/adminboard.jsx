@@ -616,7 +616,7 @@ function AdminBoard() {
       <aside className="hidden md:flex fixed top-0 left-0 h-screen md:w-56 xl:w-64 flex-col bg-black text-white shadow-2xl z-20 overflow-visible">
         <div className="p-6 flex items-center gap-3 border-b border-white/10">
           <img
-            src="/logo_text_all_white_auto.png"
+            src="https://cdn.shopify.com/s/files/1/0670/1029/8130/files/logo_text_all_white_auto.png?v=1756474006"
             alt="Subtle"
             className="h-10 object-contain"
           />
